@@ -47,9 +47,10 @@ public final class AppModel {
     public var isAuditing = false
     public var auditError: String?
 
-    /// When importing a Chromium file, treat it as Arc (the CSV can't tell them
-    /// apart, so the user decides).
-    public var treatChromiumAsArc = false
+    /// Which Chromium-based browser the next imported Chromium file is from. The
+    /// CSV can't tell Chrome/Arc/Brave/Edge/Opera/Vivaldi apart, so the user
+    /// picks. Ignored for Firefox and Apple Passwords files.
+    public var chromiumSource: BrowserSource = .chrome
 
     public let fixQueue: FixQueue
 
@@ -100,7 +101,7 @@ public final class AppModel {
 
     private func ingest(data: Data, url: URL?, displayName: String) {
         do {
-            let result = try importer.import(data: data, arcTagged: treatChromiumAsArc)
+            let result = try importer.import(data: data, chromiumSource: chromiumSource)
             files.append(ImportedFile(url: url, displayName: displayName, result: result))
             // A fresh import invalidates the previous audit.
             report = nil

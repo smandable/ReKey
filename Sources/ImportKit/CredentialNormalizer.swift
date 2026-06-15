@@ -71,14 +71,17 @@ public struct CSVImporter: Sendable {
         self.canonicalizer = URLCanonicalizer()
     }
 
-    public func `import`(data: Data, arcTagged: Bool = false) throws -> ImportResult {
+    /// Import CSV bytes. `chromiumSource` labels which Chromium-based browser a
+    /// Chromium-format file came from (they're indistinguishable by content);
+    /// it's ignored for Firefox and Apple formats. Defaults to Chrome.
+    public func `import`(data: Data, chromiumSource: BrowserSource = .chrome) throws -> ImportResult {
         let table = try CSVParser.parse(data)
-        return try makeResult(from: table, arcTagged: arcTagged)
+        return try makeResult(from: table, chromiumSource: chromiumSource)
     }
 
-    public func `import`(text: String, arcTagged: Bool = false) throws -> ImportResult {
+    public func `import`(text: String, chromiumSource: BrowserSource = .chrome) throws -> ImportResult {
         let table = try CSVParser.parse(text)
-        return try makeResult(from: table, arcTagged: arcTagged)
+        return try makeResult(from: table, chromiumSource: chromiumSource)
     }
 
     // MARK: - Internals
@@ -92,14 +95,14 @@ public struct CSVImporter: Sendable {
         let otpauth: Int?
     }
 
-    func makeResult(from table: CSVTable, arcTagged: Bool) throws -> ImportResult {
+    func makeResult(from table: CSVTable, chromiumSource: BrowserSource) throws -> ImportResult {
         guard !table.headers.isEmpty else { throw ImportError.emptyFile }
 
         let format = FormatDetector.detect(headers: table.headers)
         guard let columns = resolveColumns(format: format, headers: table.headers) else {
             throw ImportError.unrecognizedColumns
         }
-        let source = browserSource(for: format, arcTagged: arcTagged)
+        let source = browserSource(for: format, chromiumSource: chromiumSource)
 
         var credentials: [ImportedCredential] = []
         var skipped: [SkippedRow] = []
@@ -147,11 +150,13 @@ public struct CSVImporter: Sendable {
         )
     }
 
-    private func browserSource(for format: DetectedFormat, arcTagged: Bool) -> BrowserSource {
+    private func browserSource(for format: DetectedFormat, chromiumSource: BrowserSource) -> BrowserSource {
         switch format {
         case .applePasswords: return .applePasswords
         case .firefox: return .firefox
-        case .chromium: return arcTagged ? .arc : .chrome
+        // Chromium browsers are indistinguishable by content; honor the user's
+        // chosen label, but only if it's actually a Chromium-family browser.
+        case .chromium: return chromiumSource.isChromiumFamily ? chromiumSource : .chrome
         case .unknown: return .unknown
         }
     }

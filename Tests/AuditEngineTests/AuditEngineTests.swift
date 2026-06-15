@@ -24,7 +24,7 @@ struct AuditEngineTests {
         let importer = CSVImporter()
         var all: [ImportedCredential] = []
         all += try importer.import(data: Fixtures.data("chrome.csv")).credentials
-        all += try importer.import(data: Fixtures.data("arc.csv"), arcTagged: true).credentials
+        all += try importer.import(data: Fixtures.data("arc.csv"), chromiumSource: .arc).credentials
         all += try importer.import(data: Fixtures.data("firefox.csv")).credentials
         all += try importer.import(data: Fixtures.data("apple_passwords.csv")).credentials
         return all

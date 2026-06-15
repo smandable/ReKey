@@ -51,13 +51,31 @@ struct ImportTests {
 
     @Test("Arc: same layout, labeled .arc when the user tags the file")
     func arc() throws {
-        let r = try importer.import(data: Fixtures.data("arc.csv"), arcTagged: true)
+        let r = try importer.import(data: Fixtures.data("arc.csv"), chromiumSource: .arc)
         #expect(r.source == .arc)
         #expect(r.credentials.count == 2)
         #expect(cred(r, domain: "figma.com", username: "sean@icloud.com") != nil)
-        // Without the tag it's labeled chrome.
+        // Without a label it defaults to chrome.
         let untagged = try importer.import(data: Fixtures.data("arc.csv"))
         #expect(untagged.source == .chrome)
+    }
+
+    @Test("Other Chromium browsers (Brave/Edge/Opera/Vivaldi) reuse the layout and label")
+    func otherChromium() throws {
+        for source in [BrowserSource.brave, .edge, .opera, .vivaldi, .chromium] {
+            let r = try importer.import(data: Fixtures.data("chrome.csv"), chromiumSource: source)
+            #expect(r.source == source)
+            #expect(r.detectedFormat == .chromium)
+            #expect(r.credentials.count == 4)
+        }
+        // A non-Chromium label is ignored for a Chromium file (falls back to chrome).
+        let r = try importer.import(data: Fixtures.data("chrome.csv"), chromiumSource: .firefox)
+        #expect(r.source == .chrome)
+        // The chromium label is ignored for Firefox/Apple files.
+        let ff = try importer.import(data: Fixtures.data("firefox.csv"), chromiumSource: .brave)
+        #expect(ff.source == .firefox)
+        let apple = try importer.import(data: Fixtures.data("apple_passwords.csv"), chromiumSource: .brave)
+        #expect(apple.source == .applePasswords)
     }
 
     @Test("Firefox: 3 credentials, unicode password preserved exactly")

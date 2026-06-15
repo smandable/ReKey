@@ -70,9 +70,10 @@ Rekey.app/Contents/MacOS/Rekey --selftest
 | Browser | How to export |
 |---|---|
 | **Chrome** | Settings → Autofill → Password Manager → ⋮ → Export passwords |
-| **Arc** | Same as Chrome (Arc is Chromium). In Rekey, toggle *"Treat the next Chromium import as Arc"* before importing so it's labeled correctly. |
-| **Firefox** | about:logins → ⋯ → Export Logins |
-| **Apple Passwords** | Passwords app → File → Export All Passwords (or ⋯ → Export) |
+| **Arc / Brave / Edge / Opera / Vivaldi** | Same as Chrome — they're all Chromium and export an identical CSV. Rekey can't tell them apart from the file, so pick the right one in the **"label it"** menu before importing. Any other Chromium browser works too (choose *Chromium*). |
+| **Firefox** (and forks: LibreWolf, Waterfox, Tor Browser) | about:logins → ⋯ → Export Logins. Forks share Firefox's format and are detected automatically. |
+| **Apple Passwords / Safari** | Passwords app → File → Export All Passwords (or ⋯ → Export) |
+| **Anything else** | If a CSV has recognizable `url`/`username`/`password` columns, Rekey maps them fuzzily; truly unknown layouts fall back to manual column mapping. |
 
 ⚠️ A plaintext password CSV in `~/Downloads` is the single biggest real-world
 risk. After importing, use Rekey's **Securely delete** button (it overwrites the

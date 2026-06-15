@@ -16,8 +16,17 @@ struct ImportView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
-                        Toggle("Treat the next Chromium import as Arc", isOn: $model.treatChromiumAsArc)
-                            .help("Chrome and Arc export identical CSVs, so Rekey can't tell them apart. Turn this on before importing an Arc export to label it correctly.")
+                        HStack {
+                            Text("If importing a Chromium browser, label it:")
+                            Picker("Chromium browser", selection: $model.chromiumSource) {
+                                ForEach(BrowserSource.chromiumFamily, id: \.self) { source in
+                                    Text(source.displayName).tag(source)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: 180)
+                            .help("Chrome, Arc, Brave, Edge, Opera, and Vivaldi all export identical CSVs, so Rekey can't tell them apart. Pick the right one before importing. (Firefox and Apple Passwords are detected automatically.)")
+                        }
                         Button {
                             showingPicker = true
                         } label: {

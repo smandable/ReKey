@@ -60,6 +60,11 @@ extension Model.BrowserSource {
         switch self {
         case .chrome: return .blue
         case .arc: return .purple
+        case .brave: return .orange
+        case .edge: return .teal
+        case .opera: return .red
+        case .vivaldi: return .pink
+        case .chromium: return .indigo
         case .firefox: return .orange
         case .applePasswords: return .gray
         case .unknown: return .secondary
