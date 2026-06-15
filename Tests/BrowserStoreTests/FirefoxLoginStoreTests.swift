@@ -61,6 +61,30 @@ struct FirefoxLoginStoreTests {
         #expect((logins.first?["encryptedPassword"] as? String) != nil)
     }
 
+    @Test("A guid-less entry is never collaterally deleted when matching by site")
+    func guidlessNotCollateral() throws {
+        let dir = TestStores.tempDir()
+        let url = dir.appendingPathComponent("logins.json")
+        var guidless = TestStores.firefoxLogin(guid: "", host: "https://github.com")
+        guidless["guid"] = ""   // malformed: empty guid, same host as a real entry
+        TestStores.makeFirefox(at: url, logins: [
+            TestStores.firefoxLogin(guid: "{real-guid}", host: "https://github.com"),
+            guidless,
+        ])
+        let store = FirefoxLoginStore(loginsURL: url)
+
+        // Deleting by site matches BOTH, but only the entry with a real guid is
+        // removed; the guid-less one survives (can't be uniquely targeted).
+        let outcome = try store.delete(matching: LoginFilter(site: "github"),
+                                       backupDirectory: dir.appendingPathComponent("b"))
+        #expect(outcome.deletedCount == 1)
+        #expect(outcome.deleted.first?.id == "{real-guid}")
+
+        let logins = TestStores.readFirefoxRoot(url)["logins"] as? [[String: Any]] ?? []
+        #expect(logins.count == 1)
+        #expect((logins.first?["guid"] as? String) == "")   // the guid-less one remains
+    }
+
     @Test("Delete refuses without a filter; file untouched")
     func deleteNoFilter() throws {
         let (store, dir) = makeStore()

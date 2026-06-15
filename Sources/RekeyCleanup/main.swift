@@ -156,7 +156,9 @@ func printTable(_ logins: [StoredLogin]) {
 func timestamp() -> String {
     let df = DateFormatter()
     df.dateFormat = "yyyyMMdd-HHmmss"
-    return df.string(from: Date())
+    // Append a short random suffix so two runs in the same second never collide
+    // on a backup directory (StoreBackup also refuses a non-empty target).
+    return df.string(from: Date()) + "-" + String(UUID().uuidString.prefix(6))
 }
 
 func printErr(_ message: String) {

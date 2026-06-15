@@ -32,16 +32,23 @@ public struct FirefoxLoginStore: LoginStore {
         guard !filter.isEmpty else { throw LoginStoreError.noFilter }
         var root = try readRoot()
         let loginsArray = (root["logins"] as? [[String: Any]]) ?? []
-        let toDelete = loginsArray.map(makeStoredLogin).filter(filter.matches)
-        guard !toDelete.isEmpty else { return DeleteOutcome(deleted: [], backupPath: backupDirectory) }
-        let deleteGuids = Set(toDelete.map(\.id))
+
+        // Only entries with a real guid can be uniquely (and safely) targeted.
+        // An entry with a missing/empty guid is never deletable — otherwise the
+        // empty-string sentinel would collide and collateral-delete *every*
+        // guid-less entry when one is matched by site.
+        let deletable = loginsArray.map(makeStoredLogin).filter(filter.matches).filter { !$0.id.isEmpty }
+        guard !deletable.isEmpty else { return DeleteOutcome(deleted: [], backupPath: backupDirectory) }
+        let deleteGuids = Set(deletable.map(\.id))
 
         // Back up BEFORE writing.
         try StoreBackup.copy(files: [loginsURL], into: backupDirectory)
 
-        // Remove only the matched entries; keep every other key/field intact.
+        // Remove only the matched entries; keep every other key/field intact, and
+        // never drop a guid-less entry (it isn't in deleteGuids by construction).
         let remaining = loginsArray.filter { entry in
-            !deleteGuids.contains(entry["guid"] as? String ?? "")
+            let guid = entry["guid"] as? String ?? ""
+            return guid.isEmpty || !deleteGuids.contains(guid)
         }
         root["logins"] = remaining
 
@@ -59,7 +66,7 @@ public struct FirefoxLoginStore: LoginStore {
         } catch {
             throw LoginStoreError.io("couldn't write logins.json: \(error.localizedDescription)")
         }
-        return DeleteOutcome(deleted: toDelete, backupPath: backupDirectory)
+        return DeleteOutcome(deleted: deletable, backupPath: backupDirectory)
     }
 
     // MARK: - Helpers

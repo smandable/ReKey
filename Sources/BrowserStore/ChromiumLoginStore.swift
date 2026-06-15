@@ -44,7 +44,12 @@ public struct ChromiumLoginStore: LoginStore {
         try exec(db, "BEGIN IMMEDIATE")
         do {
             for login in matches {
-                guard let rowid = Int64(login.id) else { continue }
+                // rowids come from String(rowid) in list(); a non-integer here
+                // means something is wrong — fail loudly (and roll back) rather
+                // than silently under-delete what the user asked to remove.
+                guard let rowid = Int64(login.id) else {
+                    throw LoginStoreError.sqlite("unexpected non-integer rowid '\(login.id)'")
+                }
                 var stmt: OpaquePointer?
                 guard sqlite3_prepare_v2(db, "DELETE FROM logins WHERE rowid = ?", -1, &stmt, nil) == SQLITE_OK else {
                     throw LoginStoreError.sqlite(lastError(db))
@@ -60,6 +65,10 @@ public struct ChromiumLoginStore: LoginStore {
             try? exec(db, "ROLLBACK")
             throw error
         }
+        // Fold the WAL back into the main .db so the live file is self-contained
+        // (best-effort; the commit already succeeded and the pre-delete backup
+        // captured all three files for recovery).
+        try? exec(db, "PRAGMA wal_checkpoint(TRUNCATE)")
         return DeleteOutcome(deleted: matches, backupPath: backupDirectory)
     }
 

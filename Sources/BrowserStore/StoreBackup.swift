@@ -21,6 +21,11 @@ public enum StoreBackup {
     @discardableResult
     public static func copy(files: [URL], into directory: URL) throws -> URL {
         let fm = FileManager.default
+        // Never overwrite an existing backup: a non-empty target directory would
+        // clobber an earlier run's recovery snapshot. Refuse rather than destroy it.
+        if let existing = try? fm.contentsOfDirectory(atPath: directory.path), !existing.isEmpty {
+            throw LoginStoreError.backupFailed("backup directory already exists and is not empty: \(directory.path)")
+        }
         do {
             try fm.createDirectory(at: directory, withIntermediateDirectories: true)
         } catch {
