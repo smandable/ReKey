@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Model
 #if canImport(AppKit)
 import AppKit
@@ -53,6 +54,19 @@ public final class Clipboard {
     @discardableResult
     public func clearIfMatches(_ value: String) -> Bool {
         guard pasteboard.readString() == value else { return false }
+        pasteboard.clearContents()
+        return true
+    }
+
+    /// Hash-based variant of ``clearIfMatches(_:)``. Clears the clipboard only if
+    /// the SHA-256 of its current contents matches `digest`. This lets the
+    /// auto-clear timer decide whether to wipe *without* holding the plaintext
+    /// password alive for the whole timeout — the caller passes only a hash.
+    @discardableResult
+    public func clearIfMatchesHash(_ digest: Data) -> Bool {
+        guard let current = pasteboard.readString() else { return false }
+        let currentDigest = Data(SHA256.hash(data: Data(current.utf8)))
+        guard currentDigest == digest else { return false }
         pasteboard.clearContents()
         return true
     }

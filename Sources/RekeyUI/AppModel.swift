@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Observation
 import Model
 import ImportKit
@@ -137,7 +138,11 @@ public final class AppModel {
             while remaining > 0 {
                 let n = min(chunk, remaining)
                 var bytes = [UInt8](repeating: 0, count: n)
-                for i in 0..<n { bytes[i] = UInt8.random(in: 0...255) }
+                // Use the CSPRNG for consistency with the rest of the app; even
+                // zeros would suffice for a pre-unlink wipe.
+                if SecRandomCopyBytes(kSecRandomDefault, n, &bytes) != errSecSuccess {
+                    bytes = [UInt8](repeating: 0, count: n)
+                }
                 handle.write(Data(bytes))
                 remaining -= n
             }

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Observation
 import Model
 import PasswordGenerator
@@ -123,15 +124,17 @@ public final class FixQueue {
     /// Does NOT and CANNOT change the password on the site.
     public func approve(itemID: UUID) {
         guard let i = index(of: itemID), items[i].status == .pending else { return }
-        let value = items[i].newPassword.reveal()
 
-        clipboard.copy(items[i].newPassword)          // 1. copy
+        clipboard.copy(items[i].newPassword)          // 1. copy (reveals internally, transiently)
         if let url = items[i].changeURL {             // 2. open
             opener.open(url)
         }
         items[i].status = .opened                     // 3. status
 
-        scheduleClipboardClear(value: value)
+        // Schedule auto-clear by hash so we don't keep a plaintext copy of the
+        // password alive for the whole timeout just to match-before-clear.
+        let digest = items[i].newPassword.withUTF8 { Data(SHA256.hash(data: Data($0))) }
+        scheduleClipboardClear(matchingHash: digest)
     }
 
     /// User confirms they changed the password on the site (the browser saved
@@ -154,14 +157,15 @@ public final class FixQueue {
 
     // MARK: - Clipboard hygiene
 
-    /// After the timeout, clear the clipboard if it still holds the copied
-    /// value. If the user copied something else in the meantime, leave it.
-    private func scheduleClipboardClear(value: String) {
+    /// After the timeout, clear the clipboard if it still holds the copied value
+    /// (compared by hash, so no plaintext is captured). If the user copied
+    /// something else in the meantime, leave it.
+    private func scheduleClipboardClear(matchingHash digest: Data) {
         let delay = clipboardClearAfter
         let clipboard = self.clipboard
         Task { @MainActor in
             try? await Task.sleep(for: delay)
-            clipboard.clearIfMatches(value)
+            clipboard.clearIfMatchesHash(digest)
         }
     }
 

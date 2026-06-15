@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import CryptoKit
 import Model
 import PasswordGenerator
 import ResetRouter
@@ -157,6 +158,22 @@ struct FixQueueTests {
         // Still ours -> clear.
         pb.value = "abc123"
         #expect(clip.clearIfMatches("abc123") == true)
+        #expect(pb.value == nil)
+    }
+
+    @Test("Hash-based clear wipes only on a matching value")
+    func clearIfMatchesHash() {
+        let pb = FakePasteboard()
+        let clip = Clipboard(pasteboard: pb)
+        clip.copy(Secret("abc123"))
+        let digest = Data(SHA256.hash(data: Data("abc123".utf8)))
+        // Different contents -> no clear.
+        pb.value = "different"
+        #expect(clip.clearIfMatchesHash(digest) == false)
+        #expect(pb.value == "different")
+        // Matching contents -> clear.
+        pb.value = "abc123"
+        #expect(clip.clearIfMatchesHash(digest) == true)
         #expect(pb.value == nil)
     }
 
