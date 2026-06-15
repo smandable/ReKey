@@ -101,6 +101,14 @@ public final class FixQueue {
         items[i].newPassword = try generator.generate(policy ?? defaultPolicy)
     }
 
+    /// Generate a diceware passphrase as the replacement, for users who prefer
+    /// one (the "passcode if available" idea maps to picking the strongest thing
+    /// a site will accept).
+    public func regeneratePassphrase(itemID: UUID, wordCount: Int = 6) throws {
+        guard let i = index(of: itemID) else { return }
+        items[i].newPassword = try generator.generatePassphrase(wordCount: wordCount)
+    }
+
     /// Whether the change URL was confidently resolved (well-known or fallback)
     /// vs. a site-root fallback the user must navigate themselves.
     public func isChangeURLConfident(_ itemID: UUID) -> Bool {
