@@ -148,18 +148,22 @@ private struct FixCard: View {
 
     @ViewBuilder
     private var changeURLRow: some View {
+        let source = model.fixQueue.resolutionSources[item.id]
         HStack(alignment: .top) {
             Text("Change at").frame(width: 86, alignment: .leading).foregroundStyle(.secondary)
-            if let url = item.changeURL {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(url.absoluteString).font(.caption).foregroundStyle(.blue).lineLimit(2)
-                    if !model.fixQueue.isChangeURLConfident(item.id) {
-                        Text("Couldn't find a change-password page — Rekey will open the site root and you can find the setting yourself.")
-                            .font(.caption2).foregroundStyle(.orange)
-                    }
+            VStack(alignment: .leading, spacing: 4) {
+                if let url = item.changeURL {
+                    Text(url.absoluteString)
+                        .font(.caption).foregroundStyle(.blue).lineLimit(2)
+                        .textSelection(.enabled)
+                } else {
+                    Text("Will open the site root.").font(.caption).foregroundStyle(.orange)
                 }
-            } else {
-                Text("Will open the site root.").font(.caption).foregroundStyle(.orange)
+                if let source {
+                    ResetSourceBadge(source: source)
+                    Text(ResetSourceBadge.explanation(source))
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }
             Spacer()
         }

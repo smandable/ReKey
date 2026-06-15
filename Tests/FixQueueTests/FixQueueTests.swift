@@ -145,6 +145,17 @@ struct FixQueueTests {
         #expect(queue.isChangeURLConfident(id) == false)
     }
 
+    @Test("Resolution source (incl. well-known support) is recorded per item")
+    func resolutionSourceRecorded() async throws {
+        for source in [ResetSource.wellKnown, .fallbackMap, .siteRoot] {
+            let res = ResetResolution(url: URL(string: "https://acme.example/x")!, source: source)
+            let (queue, _, _) = try makeQueue(resolution: res)
+            let id = try #require(try await queue.enqueue(credential: credential()))
+            #expect(queue.resolutionSources[id] == source)
+            #expect(queue.isChangeURLConfident(id) == (source != .siteRoot))
+        }
+    }
+
     @Test("Clipboard clears only if it still holds the copied value")
     func clearIfMatches() {
         let pb = FakePasteboard()

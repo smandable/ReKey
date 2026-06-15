@@ -1,5 +1,6 @@
 import SwiftUI
 import Model
+import ResetRouter
 
 /// Presentation for a finding kind: label, color, icon. Pure mapping, no state.
 enum FindingStyle {
@@ -52,6 +53,61 @@ struct FindingBadge: View {
             return "\(FindingStyle.label(kind)) · \(breachCount.formatted()) breaches"
         }
         return FindingStyle.label(kind)
+    }
+}
+
+/// How a credential's change-password URL was resolved, for display in the fix
+/// queue. The `.wellKnown` case is the gold standard — the site exposes the W3C
+/// `.well-known/change-password` URL that Safari and Chrome use too.
+struct ResetSourceBadge: View {
+    let source: ResetSource
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+            Text(label)
+        }
+        .font(.caption2.weight(.semibold))
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.18), in: Capsule())
+        .foregroundStyle(color)
+    }
+
+    private var icon: String {
+        switch source {
+        case .wellKnown: return "checkmark.seal.fill"
+        case .fallbackMap: return "list.bullet.rectangle.fill"
+        case .siteRoot: return "questionmark.circle"
+        }
+    }
+
+    private var label: String {
+        switch source {
+        case .wellKnown: return "Supports .well-known/change-password"
+        case .fallbackMap: return "Known change page"
+        case .siteRoot: return "No change page found"
+        }
+    }
+
+    private var color: Color {
+        switch source {
+        case .wellKnown: return .green
+        case .fallbackMap: return .blue
+        case .siteRoot: return .orange
+        }
+    }
+
+    /// Longer explanation shown under the badge.
+    static func explanation(_ source: ResetSource) -> String {
+        switch source {
+        case .wellKnown:
+            return "This site exposes the standard change-password URL — the same mechanism Safari and Chrome use."
+        case .fallbackMap:
+            return "Resolved from Rekey's curated list of change-password pages."
+        case .siteRoot:
+            return "Rekey couldn't find a change-password page. It'll open the site root — look in account or security settings."
+        }
     }
 }
 

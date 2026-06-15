@@ -127,6 +127,13 @@ servers that 200 everything. Falls back to a curated map
 to the site root with a clear "find the setting yourself" note. **No LLM ever
 guesses a reset URL** — a guessed URL is worse than none.
 
+Each fix-queue card shows **how** the URL was resolved: a green
+*"Supports .well-known/change-password"* badge when the site exposes the W3C
+standard, a *"Known change page"* badge for curated entries, or a *"No change
+page found"* note for the site-root fallback. This indication only appears in the
+fix queue, never in the findings list — resolution is resolved lazily, per item,
+so the app never broadcasts your whole account list by probing every domain.
+
 ---
 
 ## Project layout
