@@ -39,22 +39,34 @@ redacted, so a password can never be accidentally logged or string-interpolated.
 
 ## Build & run
 
+There are two ways to build the app — an Xcode project and a pure-CLI script —
+both backed by the same Swift package, so the code and tests are identical.
+
+**Xcode** (`Rekey.xcodeproj`): open it and run the **Rekey** scheme (⌘R). The app
+target links the local Swift package's `RekeyUI` product and is configured for
+App Sandbox with `App/Rekey.entitlements`, bundle id `com.seanmandable.rekey`,
+macOS 15, Swift 6. (Xcode also auto-generates schemes for the package products;
+the shared **Rekey** scheme is the app.)
+
 ```bash
-# Run the full test suite (89 tests, no network — HIBP & reset are mocked)
+# Or build the app from the command line, no Xcode UI:
+xcodebuild -project Rekey.xcodeproj -scheme Rekey -configuration Release build
+
+# Run the full test suite (91 tests, no network — HIBP & reset are mocked)
 swift test
 
 # Run from source (dev)
 swift run Rekey
 
-# Build the sandboxed, signed Rekey.app
+# Build the sandboxed, signed Rekey.app without Xcode at all
 ./Scripts/build_app.sh
 open Rekey.app
 ```
 
 `Scripts/build_app.sh` builds the release binary, assembles `Rekey.app`, copies
 the vendored resource bundles into `Contents/Resources`, and ad-hoc codesigns it
-with `App/Rekey.entitlements`. (Notarization and Sparkle auto-update are out of
-scope for this build.)
+with `App/Rekey.entitlements` — useful for a no-Xcode pipeline. (Notarization and
+Sparkle auto-update are out of scope for this build.)
 
 You can sanity-check the packaged bundle's resource loading without opening a
 window:

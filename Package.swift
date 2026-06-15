@@ -16,6 +16,8 @@ let package = Package(
             "Model", "ImportKit", "AuditEngine", "HIBPClient",
             "PasswordGenerator", "ResetRouter", "FixQueue",
         ]),
+        // Exposed so the Xcode app target can link the UI from the local package.
+        .library(name: "RekeyUI", targets: ["RekeyUI"]),
     ],
     targets: [
         // MARK: Core logic (no SwiftUI)
