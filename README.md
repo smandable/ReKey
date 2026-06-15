@@ -12,9 +12,12 @@ Bundle ID: `com.seanmandable.rekey` · macOS 15+ · Swift 6 · arm64.
 
 ## What Rekey guarantees
 
-These are hard constraints, enforced by the architecture:
+These are hard constraints of the **`Rekey.app`** auditor, enforced by the
+architecture. (There is one separate, opt-in command-line tool, `rekey-cleanup`,
+that *can* delete logins — see [Deleting stale logins](#deleting-stale-logins-rekey-cleanup)
+below. It is not part of the sandboxed app and the app never links it.)
 
-- **It never edits your credentials and never writes to any browser, Apple
+- **The app never edits your credentials and never writes to any browser, Apple
   Passwords, or the system keychain.** It generates a new password and opens the
   site's change page; *you* make the change, and your browser's own "save
   password?" prompt stores it.
@@ -136,6 +139,62 @@ so the app never broadcasts your whole account list by probing every domain.
 
 ---
 
+## Deleting stale logins (`rekey-cleanup`)
+
+After you change a password, the browser usually *updates* the saved login in
+place — but sometimes it saves a brand-new entry instead, leaving a stale
+duplicate with the dead password. The browser's save dialog can't remove that;
+deletion is a browser-local action. `rekey-cleanup` is a **separate, opt-in
+command-line tool** for exactly this.
+
+It is deliberately **not** part of `Rekey.app`: the app stays sandboxed and never
+touches any store. This tool isn't sandboxed (it has to reach the browser's
+profile), so it's quarantined with heavy guardrails:
+
+- **Decrypt-free.** It matches and deletes purely on *plaintext* index fields
+  (Chromium `origin_url`/`username_value`/`signon_realm`/`rowid`; Firefox
+  `hostname`/`guid`). It never reads the encrypted password blob, so it never
+  needs the Chromium Safe Storage key, Firefox NSS/`key4.db`, or the keychain.
+  (Trade-off: Firefox usernames are encrypted, so Firefox logins are identified
+  by host + GUID + date, shown as `(encrypted)`.)
+- **Dry-run by default.** `delete` shows what it *would* remove and changes
+  nothing unless you pass `--confirm`.
+- **Won't run with the browser open.** Writing under a live browser is the
+  classic corruption path, so a confirmed delete is refused until you quit it.
+- **Backs up first.** The store (plus Chromium WAL/SHM sidecars) is copied to
+  `~/Library/Application Support/Rekey/Backups/<browser>-<timestamp>/` before any
+  write. If the backup fails, nothing is deleted.
+- **Transactional / atomic.** Chromium deletes run in a SQLite transaction
+  (rollback on any error); Firefox is rewritten atomically (temp file + rename),
+  preserving every other login and all unknown fields.
+- **Never deletes blindly.** A delete requires a filter (`--site`, `--username`,
+  or `--id`); it refuses to wipe the whole store.
+- **Known schemas only.** It bails on an unrecognized store shape rather than
+  guessing.
+
+**Apple Passwords is not supported** — iCloud Keychain has no third-party delete
+API. Supported: Chrome, Arc, Brave, Edge, Opera, Vivaldi, Chromium, Firefox.
+
+```bash
+swift run rekey-cleanup help
+
+# See what's saved (run this to find ids):
+swift run rekey-cleanup list --browser chrome --site github.com
+
+# Preview a delete (dry run — nothing changes):
+swift run rekey-cleanup delete --browser chrome --site github.com --username old@example.com
+
+# Quit the browser, then actually delete (auto-backs-up first):
+swift run rekey-cleanup delete --browser chrome --site github.com --username old@example.com --confirm
+```
+
+> **On the relaxed constraint:** the original spec forbade *all* store writes.
+> That rule still holds for `Rekey.app`. This tool is the explicit, isolated
+> exception — and even here, "no corruption" can't be *guaranteed* (browser
+> sync can resurrect a deleted entry; recent Chrome app-bound encryption is
+> hardening this surface), so the guardrails above are risk *reduction*, and the
+> automatic backup is your undo.
+
 ## Project layout
 
 ```
@@ -149,6 +208,8 @@ Sources/
   FixQueue/          preview/approve state machine + clipboard hygiene
   RekeyUI/           SwiftUI: Import, Findings, Fix Queue (no logic)
   RekeyApp/          @main entry point
+  BrowserStore/      OPT-IN, separate: decrypt-free Chromium/Firefox login delete (not linked by the app)
+  RekeyCleanup/      OPT-IN, separate: the `rekey-cleanup` CLI
 Tests/               Swift Testing suites + synthetic fixtures (Tests/Fixtures)
 App/                 Info.plist, Rekey.entitlements
 Scripts/build_app.sh assembles + signs the sandboxed .app
