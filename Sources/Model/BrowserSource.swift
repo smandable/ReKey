@@ -54,4 +54,15 @@ public enum BrowserSource: String, Sendable, CaseIterable, Codable {
     public var isChromiumFamily: Bool {
         BrowserSource.chromiumFamily.contains(self)
     }
+
+    /// Whether the opt-in `rekey-cleanup` tool can delete logins for this source.
+    /// Apple Passwords has no third-party delete API; `unknown` can't be targeted.
+    public var cleanupSupported: Bool {
+        isChromiumFamily || self == .firefox
+    }
+
+    /// The `--browser` argument for `rekey-cleanup`, or nil if unsupported.
+    public var cleanupCLIName: String? {
+        cleanupSupported ? rawValue : nil
+    }
 }

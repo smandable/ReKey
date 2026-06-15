@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import Model
 import PasswordGenerator
 
@@ -51,6 +52,8 @@ private struct FixCard: View {
     @State private var style: Style = .strong
     @State private var length: Double = 20
     @State private var avoidAmbiguous = true
+    @State private var showCleanup = false
+    @State private var copiedCommand = false
 
     enum Style: String, CaseIterable, Identifiable {
         case strong = "Strong"
@@ -74,9 +77,64 @@ private struct FixCard: View {
                 changeURLRow
                 Divider()
                 actionRow
+                if item.status == .done {
+                    staleLoginGuidance
+                }
             }
             .padding(8)
         }
+    }
+
+    /// Guidance (only) for removing a stale old saved login after a fix is done.
+    /// Rekey never deletes it — this is manual steps plus a copy-paste command
+    /// for the separate `rekey-cleanup` tool.
+    @ViewBuilder
+    private var staleLoginGuidance: some View {
+        let source = model.credential(item.credentialID)?.source ?? .unknown
+        DisclosureGroup(isExpanded: $showCleanup) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("If your browser saved a **new** entry instead of updating, an old login for **\(item.registrableDomain)** with the previous password may still be saved. Rekey never deletes it for you — here's how:")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Label(StaleLoginGuidance.manualSteps(for: source, domain: item.registrableDomain),
+                      systemImage: "hand.point.right")
+                    .font(.caption)
+
+                if let command = StaleLoginGuidance.cliCommand(for: source,
+                                                               domain: item.registrableDomain,
+                                                               username: item.username) {
+                    Text("Or use the cleanup tool (previews first — add `--confirm` and quit the browser to delete):")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .top) {
+                        Text(command)
+                            .font(.system(.caption2, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                        Button {
+                            copyCommand(command)
+                        } label: {
+                            Image(systemName: copiedCommand ? "checkmark" : "doc.on.doc")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Copy command")
+                    }
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            Label("Old login still saved? Optional cleanup", systemImage: "trash.slash")
+                .font(.caption.weight(.medium))
+        }
+    }
+
+    private func copyCommand(_ command: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+        copiedCommand = true
     }
 
     private var headerRow: some View {

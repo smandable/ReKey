@@ -158,8 +158,13 @@ deletion is a browser-local action. `rekey-cleanup` is a **separate, opt-in
 command-line tool** for exactly this.
 
 It is deliberately **not** part of `Rekey.app`: the app stays sandboxed and never
-touches any store. This tool isn't sandboxed (it has to reach the browser's
-profile), so it's quarantined with heavy guardrails:
+touches any store. (After you mark a fix *done*, the fix-queue card shows an
+optional "Old login still saved?" section with the manual steps and a
+copy-paste `rekey-cleanup` command pre-filled for that site — guidance only; the
+app never runs it.)
+
+This tool isn't sandboxed (it has to reach the browser's profile), so it's
+quarantined with heavy guardrails:
 
 - **Decrypt-free.** It matches and deletes purely on *plaintext* index fields
   (Chromium `origin_url`/`username_value`/`signon_realm`/`rowid`; Firefox
