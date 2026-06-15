@@ -55,6 +55,6 @@ let package = Package(
         .testTarget(name: "HIBPTests", dependencies: ["HIBPClient", "TestSupport"]),
         .testTarget(name: "GenerationTests", dependencies: ["PasswordGenerator"]),
         .testTarget(name: "ResetTests", dependencies: ["ResetRouter"]),
-        .testTarget(name: "FixQueueTests", dependencies: ["FixQueue", "Model"]),
+        .testTarget(name: "FixQueueTests", dependencies: ["FixQueue", "Model", "PasswordGenerator", "ResetRouter"]),
     ]
 )
