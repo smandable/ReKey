@@ -22,6 +22,22 @@ struct ResetRouterTests {
         url.path.hasPrefix("/.well-known/rekey-control-")
     }
 
+    /// well-known 200 but the CONTROL probe errors (offline/DNS) => we can't
+    /// confirm the server does honest 404s, so well-known is NOT trusted and we
+    /// fall through (here, to `.siteRoot` with an empty map).
+    @Test func wellKnownNotTrustedWhenControlProbeErrors() async {
+        MockURLProtocol.handler = { [self] url in
+            if isControlPath(url) { return .failure(.cannotFindHost) }
+            return .status(200)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let router = ResetRouter(session: .mocked(), fallbackMap: [:])
+        let result = await router.resolveChangeURL(for: "example.com")
+        #expect(result.source == .siteRoot)
+        #expect(result.isConfident == false)
+    }
+
     /// well-known 200 + control 404 => `.wellKnown`, final URL is the change URL.
     @Test func wellKnownSupportedWhenControlIs404() async {
         MockURLProtocol.handler = { [self] url in

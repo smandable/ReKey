@@ -151,6 +151,29 @@ struct HIBPClientTests {
     }
 
     @Test
+    func transientFailureIsRetriedThenSucceeds() async {
+        MockURLProtocol.reset()
+        // Fail the first request for the password prefix, succeed on the retry.
+        // The mock records each request before invoking the handler, so the
+        // count of prior requests for this prefix is the attempt number.
+        MockURLProtocol.setHandler { request in
+            let prefix = String(request.url!.lastPathComponent)
+            let attempt = MockURLProtocol.requestedPrefixes.filter { $0 == prefix }.count
+            guard prefix == Self.passwordPrefix else { return .success(status: 200, body: "") }
+            if attempt == 1 { return .failure(URLError(.timedOut)) }
+            return .success(status: 200, body: "\(Self.passwordSuffix):42")
+        }
+        let session = MockURLProtocol.makeSession()
+        let client = HIBPClient(session: session, maxRetries: 2)
+
+        let id = UUID()
+        let result = await client.check([id: Secret("password")])
+        #expect(result[id] == .compromised(breachCount: 42))
+        // Exactly two requests for the prefix: one failure, one success.
+        #expect(MockURLProtocol.requestedPrefixes.filter { $0 == Self.passwordPrefix }.count == 2)
+    }
+
+    @Test
     func offlineSessionYieldsUnknownWithoutThrowing() async {
         MockURLProtocol.reset()
         // Every request fails — simulates being offline.

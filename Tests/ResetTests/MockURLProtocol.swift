@@ -17,6 +17,8 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         case status(Int)
         /// Reply `301` to `location`; the loader follows it.
         case redirect(to: String, status: Int = 301)
+        /// Fail the request with a network error (offline / DNS / TLS).
+        case failure(URLError.Code)
     }
 
     /// The routing closure. Set per-test. Receives the request URL.
@@ -59,6 +61,9 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
             // Telling the client about a redirect makes URLSession follow it,
             // re-entering this protocol for `target`.
             client?.urlProtocol(self, wasRedirectedTo: redirectRequest, redirectResponse: response)
+
+        case let .failure(code):
+            client?.urlProtocol(self, didFailWithError: URLError(code))
         }
     }
 
