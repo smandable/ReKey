@@ -64,4 +64,25 @@ struct CSVParserTests {
         #expect(table.rows[1][0] == "Vault Notes")
         #expect(table.rows[1][4] == "first line\nsecond line")
     }
+
+    @Test("Empty input throws .empty, not a crash")
+    func emptyInput() {
+        #expect(throws: CSVParseError.empty) { _ = try CSVParser.parse(Data()) }
+        #expect(throws: CSVParseError.empty) { _ = try CSVParser.parse("") }
+    }
+
+    @Test("Invalid UTF-8 throws .empty rather than crashing")
+    func invalidUTF8() {
+        // 0xFF 0xFE are not valid UTF-8 lead bytes.
+        #expect(throws: CSVParseError.empty) { _ = try CSVParser.parse(Data([0xFF, 0xFE, 0x00])) }
+    }
+
+    @Test("Unterminated quote: trailing field is captured to end of input")
+    func unterminatedQuote() throws {
+        // The opening quote is never closed; everything after it is one field.
+        let table = try CSVParser.parse("a,b\n\"oops,still going\n")
+        #expect(table.headers == ["a", "b"])
+        #expect(table.rows.count == 1)
+        #expect(table.rows[0] == ["oops,still going\n"])
+    }
 }

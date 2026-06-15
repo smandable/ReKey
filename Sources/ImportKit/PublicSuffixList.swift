@@ -43,8 +43,11 @@ public struct PublicSuffixList: Sendable {
         self.exceptions = exceptions
     }
 
-    /// Load the vendored list bundled with this module.
-    public static func bundled() -> PublicSuffixList {
+    /// The vendored list, parsed once and shared. Parsing 16k+ rules is not free,
+    /// so every default `URLCanonicalizer()` reuses this instead of re-parsing.
+    public static func bundled() -> PublicSuffixList { cached }
+
+    private static let cached: PublicSuffixList = {
         guard
             let url = RekeyResources.url(forResource: "public_suffix_list", withExtension: "dat",
                                          moduleBundleName: "Rekey_ImportKit", fallback: .module),
@@ -55,7 +58,7 @@ public struct PublicSuffixList: Sendable {
             return PublicSuffixList(data: "")
         }
         return PublicSuffixList(data: text)
-    }
+    }()
 
     /// Number of labels in the public suffix (eTLD) of `host`.
     private func publicSuffixLabelCount(_ labels: [String]) -> Int {

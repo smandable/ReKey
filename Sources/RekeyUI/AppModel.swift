@@ -66,6 +66,9 @@ public final class AppModel {
     /// an export finished moments earlier is still picked up.
     private let importGraceSeconds: TimeInterval = 300
     private let bookmarkKey = "rekey.watchedFolderBookmark"
+    /// The bookmark-restored folder for which we hold a security scope (nil for
+    /// picker-granted folders, which don't need an explicit scope).
+    private var scopedURL: URL?
 
     public let fixQueue: FixQueue
 
@@ -88,16 +91,24 @@ public final class AppModel {
 
     // MARK: - Derived
 
-    public var allCredentials: [ImportedCredential] {
-        files.flatMap(\.result.credentials)
-    }
+    /// All valid imported credentials, cached (rebuilt only when `files` changes)
+    /// so the audit, the fix queue, and per-row lookups don't re-flatten on every
+    /// access.
+    public private(set) var allCredentials: [ImportedCredential] = []
+    private var credentialIndex: [UUID: ImportedCredential] = [:]
 
     public var totalSkipped: Int {
         files.reduce(0) { $0 + $1.result.skipped.count }
     }
 
+    /// O(1) lookup by id.
     public func credential(_ id: UUID) -> ImportedCredential? {
-        allCredentials.first { $0.id == id }
+        credentialIndex[id]
+    }
+
+    private func reindexCredentials() {
+        allCredentials = files.flatMap(\.result.credentials)
+        credentialIndex = Dictionary(allCredentials.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     // MARK: - Import
@@ -119,6 +130,7 @@ public final class AppModel {
         do {
             let result = try importer.import(data: data, chromiumSource: chromiumSource)
             files.append(ImportedFile(url: url, displayName: displayName, result: result))
+            reindexCredentials()
             // A fresh import invalidates the previous audit.
             report = nil
         } catch {
@@ -128,6 +140,7 @@ public final class AppModel {
 
     public func removeFile(_ file: ImportedFile) {
         files.removeAll { $0.id == file.id }
+        reindexCredentials()
         report = nil
     }
 
@@ -146,24 +159,32 @@ public final class AppModel {
 
     static func secureDelete(_ url: URL) -> Bool {
         let fm = FileManager.default
-        let size = (try? fm.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
-        if size > 0, let handle = try? FileHandle(forWritingTo: url) {
-            defer { try? handle.close() }
-            var remaining = size
-            let chunk = 64 * 1024
-            try? handle.seek(toOffset: 0)
-            while remaining > 0 {
-                let n = min(chunk, remaining)
-                var bytes = [UInt8](repeating: 0, count: n)
-                // Use the CSPRNG for consistency with the rest of the app; even
-                // zeros would suffice for a pre-unlink wipe.
-                if SecRandomCopyBytes(kSecRandomDefault, n, &bytes) != errSecSuccess {
-                    bytes = [UInt8](repeating: 0, count: n)
+        let size = ((try? fm.attributesOfItem(atPath: url.path))?[.size] as? Int) ?? 0
+
+        // Overwrite the bytes before unlinking. If the overwrite fails, report
+        // failure honestly — otherwise we'd tell the user a plaintext password
+        // file was wiped when only the directory entry was removed.
+        if size > 0 {
+            do {
+                let handle = try FileHandle(forWritingTo: url)
+                defer { try? handle.close() }
+                try handle.seek(toOffset: 0)
+                var remaining = size
+                let chunk = 64 * 1024
+                while remaining > 0 {
+                    let n = min(chunk, remaining)
+                    var bytes = [UInt8](repeating: 0, count: n)
+                    // CSPRNG for consistency; even zeros would suffice for a wipe.
+                    if SecRandomCopyBytes(kSecRandomDefault, n, &bytes) != errSecSuccess {
+                        bytes = [UInt8](repeating: 0, count: n)
+                    }
+                    try handle.write(contentsOf: Data(bytes))
+                    remaining -= n
                 }
-                handle.write(Data(bytes))
-                remaining -= n
+                try handle.synchronize()
+            } catch {
+                return false
             }
-            try? handle.synchronize()
         }
         do { try fm.removeItem(at: url); return true } catch { return false }
     }
@@ -184,6 +205,8 @@ public final class AppModel {
     }
 
     public func startWatching(_ url: URL) {
+        // Release any previously bookmark-scoped folder before switching.
+        releaseScopedAccess()
         watchedFolder = url
         watchStart = Date()
         seenSignatures = []
@@ -196,10 +219,20 @@ public final class AppModel {
 
     public func stopWatching() {
         folderWatcher.stop()
-        watchedFolder?.stopAccessingSecurityScopedResource()
+        releaseScopedAccess()
         watchedFolder = nil
         autoImportMessage = nil
         UserDefaults.standard.removeObject(forKey: bookmarkKey)
+    }
+
+    /// Balance any `startAccessingSecurityScopedResource()` started for a restored
+    /// bookmark. Picker-granted folders aren't scoped, so only the bookmark URL is
+    /// tracked here.
+    private func releaseScopedAccess() {
+        if let scoped = scopedURL {
+            scoped.stopAccessingSecurityScopedResource()
+            scopedURL = nil
+        }
     }
 
     private func scanWatchedFolder() {
@@ -240,7 +273,8 @@ public final class AppModel {
             UserDefaults.standard.removeObject(forKey: bookmarkKey)
             return
         }
-        startWatching(url)
+        startWatching(url)      // releaseScopedAccess() at top releases any prior
+        scopedURL = url         // we now own the scope for this bookmark URL
     }
 
     // MARK: - Audit

@@ -38,30 +38,11 @@ public final class Clipboard {
         pasteboard.writeString(secret.reveal())
     }
 
-    /// Current clipboard string (used to decide whether auto-clear should fire).
-    public func contents() -> String? {
-        pasteboard.readString()
-    }
-
-    /// Unconditionally clear the clipboard.
-    public func clear() {
-        pasteboard.clearContents()
-    }
-
-    /// Clear the clipboard **only** if it still holds `value`. Returns whether a
-    /// clear happened. This is the auto-clear primitive: if the user has since
-    /// copied something else, we leave it alone.
-    @discardableResult
-    public func clearIfMatches(_ value: String) -> Bool {
-        guard pasteboard.readString() == value else { return false }
-        pasteboard.clearContents()
-        return true
-    }
-
-    /// Hash-based variant of ``clearIfMatches(_:)``. Clears the clipboard only if
-    /// the SHA-256 of its current contents matches `digest`. This lets the
-    /// auto-clear timer decide whether to wipe *without* holding the plaintext
-    /// password alive for the whole timeout — the caller passes only a hash.
+    /// Clear the clipboard only if the SHA-256 of its current contents matches
+    /// `digest`. This is the sole auto-clear primitive: the timer decides whether
+    /// to wipe *without* holding the plaintext password alive for the whole
+    /// timeout (the caller passes only a hash), and if the user has since copied
+    /// something else, we leave it alone.
     @discardableResult
     public func clearIfMatchesHash(_ digest: Data) -> Bool {
         guard let current = pasteboard.readString() else { return false }

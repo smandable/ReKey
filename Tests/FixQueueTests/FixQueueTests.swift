@@ -137,6 +137,18 @@ struct FixQueueTests {
         #expect(before != after)
     }
 
+    @Test("Regenerate as a passphrase replaces with a multi-word value")
+    func regeneratePassphrase() async throws {
+        let (queue, _, _) = try makeQueue()
+        let id = try #require(try await queue.enqueue(credential: credential()))
+        let before = try #require(queue.items.first?.newPassword.reveal())
+        try queue.regeneratePassphrase(itemID: id, wordCount: 6)
+        let after = try #require(queue.items.first?.newPassword.reveal())
+        #expect(after != before)
+        #expect(!after.isEmpty)
+        #expect(after.split(separator: "-").count == 6)   // default separator
+    }
+
     @Test("Site-root resolution is flagged as not confident")
     func siteRootNotConfident() async throws {
         let resolution = ResetResolution(url: URL(string: "https://acme.example/")!, source: .siteRoot)
@@ -154,22 +166,6 @@ struct FixQueueTests {
             #expect(queue.resolutionSources[id] == source)
             #expect(queue.isChangeURLConfident(id) == (source != .siteRoot))
         }
-    }
-
-    @Test("Clipboard clears only if it still holds the copied value")
-    func clearIfMatches() {
-        let pb = FakePasteboard()
-        let clip = Clipboard(pasteboard: pb)
-        clip.copy(Secret("abc123"))
-        #expect(pb.value == "abc123")
-        // User copied something else -> we must not wipe it.
-        pb.value = "user-copied-this"
-        #expect(clip.clearIfMatches("abc123") == false)
-        #expect(pb.value == "user-copied-this")
-        // Still ours -> clear.
-        pb.value = "abc123"
-        #expect(clip.clearIfMatches("abc123") == true)
-        #expect(pb.value == nil)
     }
 
     @Test("Hash-based clear wipes only on a matching value")

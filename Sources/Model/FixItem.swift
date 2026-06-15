@@ -5,8 +5,6 @@ import Foundation
 public enum FixStatus: String, Sendable, Equatable, Codable, CaseIterable {
     /// In the queue, awaiting the user's explicit approval.
     case pending
-    /// User approved; about to copy + open (transient).
-    case approved
     /// New password copied to clipboard and change page opened in the browser.
     case opened
     /// User confirmed they changed it on the site (browser saved the new value).

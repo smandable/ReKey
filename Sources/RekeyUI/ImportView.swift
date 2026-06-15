@@ -113,11 +113,7 @@ struct ImportView: View {
                     Image(systemName: "doc.text")
                     Text(file.displayName).font(.headline)
                     Spacer()
-                    Text(file.result.source.displayName)
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(file.result.source.badgeColor.opacity(0.18), in: Capsule())
-                        .foregroundStyle(file.result.source.badgeColor)
+                    BrowserSourcePill(source: file.result.source)
                 }
 
                 HStack(spacing: 16) {

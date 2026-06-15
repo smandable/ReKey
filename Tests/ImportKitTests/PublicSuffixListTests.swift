@@ -39,3 +39,30 @@ struct PublicSuffixListTests {
         #expect(psl.registrableDomain(of: "www.ck") == "www.ck")
     }
 }
+
+@Suite("URL canonicalization — IP literals and edge cases")
+struct URLCanonicalizerTests {
+    let canon = URLCanonicalizer()
+
+    @Test("IPv4 hosts are returned verbatim, not collapsed via the PSL")
+    func ipv4() {
+        #expect(canon.registrableDomain(fromRawURL: "https://192.168.1.1/login") == "192.168.1.1")
+        #expect(canon.registrableDomain(fromRawURL: "https://10.0.0.5:8080/") == "10.0.0.5")
+        // Distinct LAN devices must stay distinct (the bug: all became "1.1").
+        #expect(canon.registrableDomain(fromRawURL: "https://10.0.1.1/") != canon.registrableDomain(fromRawURL: "https://172.16.1.1/"))
+    }
+
+    @Test("IPv6 hosts are returned verbatim")
+    func ipv6() {
+        #expect(URLCanonicalizer.isIPLiteral("2001:db8::1"))
+        #expect(canon.registrableDomain(fromRawURL: "https://[2001:db8::1]/") == "2001:db8::1")
+    }
+
+    @Test("Normal hosts still resolve to eTLD+1")
+    func normal() {
+        #expect(canon.registrableDomain(fromRawURL: "https://accounts.google.com/") == "google.com")
+        #expect(canon.registrableDomain(fromRawURL: "https://www.reddit.com/") == "reddit.com")
+        #expect(!URLCanonicalizer.isIPLiteral("example.com"))
+        #expect(!URLCanonicalizer.isIPLiteral("1.com"))   // not 4 all-digit labels
+    }
+}

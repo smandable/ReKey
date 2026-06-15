@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import Model
 
 /// A set of credentials that share one password value. Used to render the
@@ -45,7 +44,7 @@ public enum ReuseAnalyzer {
         // Bucket credentials by the SHA-256 of their password value.
         var buckets: [Data: [ImportedCredential]] = [:]
         for c in credentials {
-            buckets[bucketKey(c.password), default: []].append(c)
+            buckets[c.password.sha256(), default: []].append(c)
         }
 
         var clusters: [ReuseCluster] = []
@@ -53,10 +52,13 @@ public enum ReuseAnalyzer {
         var duplicatedWithinSite: Set<UUID> = []
 
         // Iterate in a stable order (by smallest credential id in each bucket) so
-        // output is deterministic regardless of dictionary ordering.
-        for (_, group) in buckets.sorted(by: { lhs, rhs in
-            (lhs.value.map(\.id.uuidString).min() ?? "") < (rhs.value.map(\.id.uuidString).min() ?? "")
-        }) {
+        // output is deterministic regardless of dictionary ordering. Sort keys
+        // are computed once, not per comparison.
+        let orderedGroups = buckets.values
+            .map { (sortKey: $0.map(\.id.uuidString).min() ?? "", group: $0) }
+            .sorted { $0.sortKey < $1.sortKey }
+
+        for (_, group) in orderedGroups {
             guard group.count >= 2 else { continue }
 
             let domains = Set(group.map(\.registrableDomain))
@@ -90,13 +92,5 @@ public enum ReuseAnalyzer {
             reusedAcrossSites: reusedAcrossSites,
             duplicatedWithinSite: duplicatedWithinSite
         )
-    }
-
-    /// SHA-256 of the password's UTF-8 bytes, as `Data`. In-memory bucketing key
-    /// only; never written anywhere.
-    private static func bucketKey(_ secret: Secret) -> Data {
-        secret.withUTF8 { bytes in
-            Data(SHA256.hash(data: Data(bytes)))
-        }
     }
 }

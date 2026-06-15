@@ -188,8 +188,10 @@ public actor HIBPClient {
                 if attempt >= maxRetries {
                     return nil
                 }
-                // Exponential backoff: 200ms, 400ms, 800ms, ...
-                let delayNanos = UInt64(200_000_000) << UInt64(attempt)
+                // Exponential backoff: 200ms, 400ms, 800ms, … capped so a large
+                // maxRetries can't overflow the shift (traps) or sleep absurdly.
+                let shift = min(attempt, 20)
+                let delayNanos = UInt64(200_000_000) << UInt64(shift)
                 try? await Task.sleep(nanoseconds: delayNanos)
                 attempt += 1
             }

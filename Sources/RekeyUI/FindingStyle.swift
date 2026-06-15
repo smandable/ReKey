@@ -2,6 +2,34 @@ import SwiftUI
 import Model
 import ResetRouter
 
+/// One pill badge: an optional SF Symbol plus text in a tinted capsule. The
+/// single source of the badge styling used across findings, sources, and reset.
+struct PillBadge: View {
+    var icon: String? = nil
+    let text: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let icon { Image(systemName: icon) }
+            Text(text)
+        }
+        .font(.caption2.weight(.semibold))
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.18), in: Capsule())
+        .foregroundStyle(color)
+    }
+}
+
+/// The browser/source badge.
+struct BrowserSourcePill: View {
+    let source: BrowserSource
+    var body: some View {
+        PillBadge(text: source.displayName, color: source.badgeColor)
+    }
+}
+
 /// Presentation for a finding kind: label, color, icon. Pure mapping, no state.
 enum FindingStyle {
     static func label(_ kind: FindingKind) -> String {
@@ -36,16 +64,7 @@ struct FindingBadge: View {
     var breachCount: Int? = nil
 
     var body: some View {
-        let color = FindingStyle.color(kind)
-        HStack(spacing: 4) {
-            Image(systemName: FindingStyle.icon(kind))
-            Text(text)
-        }
-        .font(.caption2.weight(.semibold))
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(color.opacity(0.18), in: Capsule())
-        .foregroundStyle(color)
+        PillBadge(icon: FindingStyle.icon(kind), text: text, color: FindingStyle.color(kind))
     }
 
     private var text: String {
@@ -63,15 +82,7 @@ struct ResetSourceBadge: View {
     let source: ResetSource
 
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-            Text(label)
-        }
-        .font(.caption2.weight(.semibold))
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(color.opacity(0.18), in: Capsule())
-        .foregroundStyle(color)
+        PillBadge(icon: icon, text: label, color: color)
     }
 
     private var icon: String {

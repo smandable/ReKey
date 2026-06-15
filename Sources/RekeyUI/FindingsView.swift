@@ -93,11 +93,7 @@ struct FindingsView: View {
                     Text(cred.rawURL).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
-                Text(cred.source.displayName)
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(cred.source.badgeColor.opacity(0.15), in: Capsule())
-                    .foregroundStyle(cred.source.badgeColor)
+                BrowserSourcePill(source: cred.source)
                 if cred.hasTOTP {
                     Image(systemName: "clock.badge.checkmark").foregroundStyle(.secondary)
                         .help("This entry also has a one-time-code (TOTP) set up.")

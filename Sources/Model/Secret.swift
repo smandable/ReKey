@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// A wrapper around a plaintext password value.
 ///
@@ -65,6 +66,13 @@ public struct Secret: Sendable, Hashable {
     /// that does not leak the real length. Use this for `oldPasswordMasked`.
     public func masked() -> String {
         String(repeating: "•", count: 8)
+    }
+
+    /// SHA-256 of the password's UTF-8 bytes, as `Data`. For in-memory bucketing
+    /// and constant-input comparison (reuse analysis, clipboard auto-clear) —
+    /// never a security primitive, and never persisted or transmitted.
+    public func sha256() -> Data {
+        withUTF8 { Data(SHA256.hash(data: Data($0))) }
     }
 }
 

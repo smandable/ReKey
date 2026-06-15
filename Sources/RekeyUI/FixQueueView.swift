@@ -167,7 +167,7 @@ private struct FixCard: View {
     private var newPasswordRow: some View {
         HStack {
             Text("New").frame(width: 86, alignment: .leading).foregroundStyle(.secondary)
-            Text(revealNew ? item.newPassword.reveal() : String(repeating: "•", count: 16))
+            Text(revealNew ? item.newPassword.reveal() : item.newPassword.masked())
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.primary)
                 .textSelection(.enabled)
@@ -244,7 +244,7 @@ private struct FixCard: View {
                     model.fixQueue.approve(itemID: item.id)
                 } label: { Label("Approve", systemImage: "checkmark") }
                     .buttonStyle(.borderedProminent)
-            case .opened, .approved:
+            case .opened:
                 Button("Mark done") { model.fixQueue.markDone(itemID: item.id) }
                     .buttonStyle(.borderedProminent)
             case .done:
@@ -259,7 +259,7 @@ private struct FixCard: View {
     private var statusBadge: some View {
         switch item.status {
         case .pending: Text("Pending").foregroundStyle(.secondary)
-        case .approved, .opened: Text("Opened").foregroundStyle(.blue)
+        case .opened: Text("Opened").foregroundStyle(.blue)
         case .done: Text("Done").foregroundStyle(.green)
         case .skipped: Text("Skipped").foregroundStyle(.secondary)
         }

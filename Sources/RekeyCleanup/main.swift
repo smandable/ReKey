@@ -140,6 +140,7 @@ func run() -> Int32 {
 func printTable(_ logins: [StoredLogin]) {
     guard !logins.isEmpty else { return }
     let df = DateFormatter()
+    df.locale = Locale(identifier: "en_US_POSIX")
     df.dateFormat = "yyyy-MM-dd"
     print("")
     print("  #  id           origin                                   username")
@@ -155,6 +156,10 @@ func printTable(_ logins: [StoredLogin]) {
 
 func timestamp() -> String {
     let df = DateFormatter()
+    // Pin locale + calendar so the fixed-format backup-directory name is stable
+    // regardless of the user's locale (e.g. non-Gregorian calendars).
+    df.locale = Locale(identifier: "en_US_POSIX")
+    df.calendar = Calendar(identifier: .gregorian)
     df.dateFormat = "yyyyMMdd-HHmmss"
     // Append a short random suffix so two runs in the same second never collide
     // on a backup directory (StoreBackup also refuses a non-empty target).

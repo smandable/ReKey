@@ -39,6 +39,10 @@ public struct URLCanonicalizer: Sendable {
             return nil
         }
 
+        // IPv6 literals come bracketed from URLComponents on some platforms.
+        if host.hasPrefix("["), host.hasSuffix("]") {
+            host = String(host.dropFirst().dropLast())
+        }
         if host.hasPrefix("www.") {
             host.removeFirst(4)
         }
@@ -50,6 +54,18 @@ public struct URLCanonicalizer: Sendable {
     /// (e.g. the host is itself a public suffix, or an IP / single label).
     public func registrableDomain(fromRawURL raw: String) -> String? {
         guard let host = host(fromRawURL: raw) else { return nil }
+        // IP literals have no registrable domain — return them verbatim so
+        // distinct devices (192.168.1.1 vs 10.0.1.1) don't collapse to a bogus
+        // "1.1" via the PSL default rule.
+        if Self.isIPLiteral(host) { return host }
         return psl.registrableDomain(of: host) ?? host
+    }
+
+    /// True for an IPv4 literal (four all-digit dot labels) or an IPv6 literal
+    /// (contains a colon).
+    static func isIPLiteral(_ host: String) -> Bool {
+        if host.contains(":") { return true }   // IPv6
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+        return labels.count == 4 && labels.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
     }
 }

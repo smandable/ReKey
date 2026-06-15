@@ -85,6 +85,32 @@ struct FirefoxLoginStoreTests {
         #expect((logins.first?["guid"] as? String) == "")   // the guid-less one remains
     }
 
+    @Test("Version 2 is accepted: validate/list/delete all work")
+    func version2() throws {
+        let (store, dir) = makeStore(version: 2)
+        #expect(throws: Never.self) { try store.validate() }
+        #expect(try store.list(matching: LoginFilter()).count == 2)
+        let outcome = try store.delete(matching: LoginFilter(site: "github"),
+                                       backupDirectory: dir.appendingPathComponent("b"))
+        #expect(outcome.deletedCount == 1)
+    }
+
+    @Test("Backup failure aborts the delete (file untouched)")
+    func backupFailureAborts() throws {
+        let (store, dir) = makeStore()
+        // Pre-create a NON-empty backup dir so StoreBackup.copy refuses it.
+        let backup = dir.appendingPathComponent("backup")
+        try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: backup.appendingPathComponent("occupied"))
+
+        let before = try Data(contentsOf: store.loginsURL)
+        #expect(throws: LoginStoreError.self) {
+            _ = try store.delete(matching: LoginFilter(site: "github"), backupDirectory: backup)
+        }
+        // The store must be untouched when backup fails.
+        #expect(try Data(contentsOf: store.loginsURL) == before)
+    }
+
     @Test("Delete refuses without a filter; file untouched")
     func deleteNoFilter() throws {
         let (store, dir) = makeStore()

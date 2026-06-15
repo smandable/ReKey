@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import Observation
 import Model
 import PasswordGenerator
@@ -81,6 +80,10 @@ public final class FixQueue {
         let newPassword = try generator.generate(policy ?? defaultPolicy)
         let resolution = await router.resolveChangeURL(for: credential.registrableDomain)
 
+        // Re-check after the await: another task (e.g. "Fix all" racing a single
+        // "Fix this") may have enqueued this credential while we were suspended.
+        guard !items.contains(where: { $0.credentialID == credential.id }) else { return nil }
+
         let item = FixItem(
             credentialID: credential.id,
             registrableDomain: credential.registrableDomain,
@@ -133,14 +136,13 @@ public final class FixQueue {
 
         // Schedule auto-clear by hash so we don't keep a plaintext copy of the
         // password alive for the whole timeout just to match-before-clear.
-        let digest = items[i].newPassword.withUTF8 { Data(SHA256.hash(data: Data($0))) }
-        scheduleClipboardClear(matchingHash: digest)
+        scheduleClipboardClear(matchingHash: items[i].newPassword.sha256())
     }
 
     /// User confirms they changed the password on the site (the browser saved
     /// it). Terminal state.
     public func markDone(itemID: UUID) {
-        setStatus(itemID, to: .done, from: [.opened, .approved])
+        setStatus(itemID, to: .done, from: [.opened])
     }
 
     /// User chooses not to fix this one. Allowed from any non-terminal state.

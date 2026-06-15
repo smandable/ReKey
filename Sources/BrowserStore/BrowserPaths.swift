@@ -20,12 +20,11 @@ public enum BrowserPaths {
         }
     }
 
-    /// Whether this tool supports operating on the browser's store.
+    /// Whether this tool supports operating on the browser's store. Delegates to
+    /// the model so there's a single source of truth (Apple Passwords has no
+    /// third-party delete API; `unknown` can't be targeted).
     public static func isSupported(_ browser: BrowserSource) -> Bool {
-        switch browser {
-        case .applePasswords, .unknown: return false   // no third-party delete API
-        default: return true
-        }
+        browser.cleanupSupported
     }
 
     /// Application Support subdirectory holding the browser's profiles.
