@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "comment": "Curated change-password URLs for popular sites. The ResetRouter tries https://{domain}/.well-known/change-password FIRST; this map is only the fallback for sites that don't support the well-known path. Keyed by registrable domain (eTLD+1). Best-effort and easy to extend — add a domain and URL.",
+  "entries": {
+    "amazon.com": "https://www.amazon.com/ap/cnep",
+    "paypal.com": "https://www.paypal.com/myaccount/security/password/change",
+    "netflix.com": "https://www.netflix.com/password",
+    "twitter.com": "https://twitter.com/settings/password",
+    "x.com": "https://x.com/settings/password",
+    "instagram.com": "https://www.instagram.com/accounts/password/change/",
+    "linkedin.com": "https://www.linkedin.com/psettings/change-password",
+    "microsoft.com": "https://account.live.com/password/Change",
+    "live.com": "https://account.live.com/password/Change",
+    "apple.com": "https://appleid.apple.com/account/manage",
+    "google.com": "https://myaccount.google.com/signinoptions/password",
+    "yahoo.com": "https://login.yahoo.com/account/security",
+    "dropbox.com": "https://www.dropbox.com/account/security",
+    "slack.com": "https://my.slack.com/account/settings",
+    "ebay.com": "https://accounts.ebay.com/acct/security-center",
+    "adobe.com": "https://account.adobe.com/security",
+    "github.com": "https://github.com/settings/security",
+    "gitlab.com": "https://gitlab.com/-/profile/password/edit",
+    "reddit.com": "https://www.reddit.com/settings/account",
+    "spotify.com": "https://www.spotify.com/account/change-password/",
+    "steampowered.com": "https://store.steampowered.com/account/",
+    "discord.com": "https://discord.com/channels/@me",
+    "facebook.com": "https://www.facebook.com/settings?tab=security",
+    "twitch.tv": "https://www.twitch.tv/settings/security"
+  }
+}

@@ -1,0 +1,6 @@
+name,url,username,password,note
+GitHub,https://github.com/,sean,Tr0ub4dour&3,
+GitHub,https://github.com/,sean-work,Tr0ub4dour&3,"work account, same password oops"
+Example,https://example.com/,user@example.com,hunter2,
+Reddit,https://www.reddit.com/,seanm,password,
+News (Google sign-in),https://news.example.net/,sean,,Signed in with Google
