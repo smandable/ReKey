@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import Observation
+import AppKit
 import Model
 import ImportKit
 import AuditEngine
@@ -52,6 +53,20 @@ public final class AppModel {
     /// picks. Ignored for Firefox and Apple Passwords files.
     public var chromiumSource: BrowserSource = .chrome
 
+    // MARK: Auto-import (folder watch)
+    /// Folder being watched for freshly-exported CSVs (nil = not watching).
+    public private(set) var watchedFolder: URL?
+    /// Last auto-import status line for the UI.
+    public private(set) var autoImportMessage: String?
+
+    private let folderWatcher = FolderWatcher()
+    private var watchStart = Date.distantPast
+    private var seenSignatures: Set<String> = []
+    /// Import files modified within this grace window before watching started, so
+    /// an export finished moments earlier is still picked up.
+    private let importGraceSeconds: TimeInterval = 300
+    private let bookmarkKey = "rekey.watchedFolderBookmark"
+
     public let fixQueue: FixQueue
 
     private let importer = CSVImporter()
@@ -68,6 +83,7 @@ public final class AppModel {
             clipboard: Clipboard(),
             opener: WorkspaceURLOpener()
         )
+        restoreWatchedFolder()
     }
 
     // MARK: - Derived
@@ -150,6 +166,81 @@ public final class AppModel {
             try? handle.synchronize()
         }
         do { try fm.removeItem(at: url); return true } catch { return false }
+    }
+
+    // MARK: - Auto-import (folder watch)
+
+    /// Prompt for a folder to watch for exported CSVs.
+    public func chooseWatchFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Watch"
+        panel.message = "Choose a folder to watch for exported password CSVs (e.g. Downloads). Rekey auto-imports recognized exports as they appear."
+        if panel.runModal() == .OK, let url = panel.url {
+            startWatching(url)
+        }
+    }
+
+    public func startWatching(_ url: URL) {
+        watchedFolder = url
+        watchStart = Date()
+        seenSignatures = []
+        autoImportMessage = nil
+        folderWatcher.onChange = { [weak self] in self?.scanWatchedFolder() }
+        folderWatcher.start(url: url)
+        saveBookmark(url)
+        scanWatchedFolder()   // catch an export that just finished
+    }
+
+    public func stopWatching() {
+        folderWatcher.stop()
+        watchedFolder?.stopAccessingSecurityScopedResource()
+        watchedFolder = nil
+        autoImportMessage = nil
+        UserDefaults.standard.removeObject(forKey: bookmarkKey)
+    }
+
+    private func scanWatchedFolder() {
+        guard let dir = watchedFolder else { return }
+        let threshold = watchStart.addingTimeInterval(-importGraceSeconds)
+        for entry in FolderScan.freshCSVs(in: dir, since: threshold, seen: seenSignatures) {
+            seenSignatures.insert(entry.signature)
+            autoImport(entry.url)
+        }
+    }
+
+    private func autoImport(_ url: URL) {
+        // Skip anything already imported, and anything that isn't a recognized
+        // password export (so a random CSV in the folder is left alone).
+        if files.contains(where: { $0.url?.path == url.path }) { return }
+        guard let data = try? Data(contentsOf: url),
+              let table = try? CSVParser.parse(data),
+              FormatDetector.detect(headers: table.headers) != .unknown else { return }
+        ingest(data: data, url: url, displayName: url.lastPathComponent)
+        let count = files.last?.result.credentials.count ?? 0
+        autoImportMessage = "Auto-imported \(url.lastPathComponent) — \(count) credential(s). Remember to securely delete it below."
+    }
+
+    // MARK: Security-scoped bookmark persistence
+
+    private func saveBookmark(_ url: URL) {
+        if let data = try? url.bookmarkData(options: .withSecurityScope) {
+            UserDefaults.standard.set(data, forKey: bookmarkKey)
+        }
+    }
+
+    private func restoreWatchedFolder() {
+        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope,
+                                 relativeTo: nil, bookmarkDataIsStale: &stale),
+              url.startAccessingSecurityScopedResource() else {
+            UserDefaults.standard.removeObject(forKey: bookmarkKey)
+            return
+        }
+        startWatching(url)
     }
 
     // MARK: - Audit

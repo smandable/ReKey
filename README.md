@@ -32,8 +32,10 @@ below. It is not part of the sandboxed app and the app never links it.)
   HIBP range query and the on-demand resolution of a single site's
   change-password URL when you choose to fix it. Reset URLs are resolved lazily,
   one at a time — never by batch-pinging your whole account list.
-- **App Sandbox is on.** Entitlements: outgoing network client, and read-write to
-  user-selected files (so the source CSV can be securely deleted). Nothing else.
+- **App Sandbox is on.** Entitlements: outgoing network client; read-write to
+  user-selected files (so the source CSV can be securely deleted); and an
+  app-scope bookmark, used only if you turn on the opt-in auto-import folder
+  watcher (to remember the folder across launches). Nothing else.
 
 A `Secret` wrapper holds every password; its `description`/`debugDescription` are
 redacted, so a password can never be accidentally logged or string-interpolated.
@@ -93,6 +95,14 @@ Rekey.app/Contents/MacOS/Rekey --selftest
 ⚠️ A plaintext password CSV in `~/Downloads` is the single biggest real-world
 risk. After importing, use Rekey's **Securely delete** button (it overwrites the
 file's bytes, then unlinks it).
+
+**Auto-import (optional).** On the Import screen you can *Choose folder…* to watch
+a folder (e.g. Downloads). Rekey then imports any recognized password CSV that
+appears there automatically (and only recognized ones — a random CSV is left
+alone), then prompts you to securely delete it. You still export manually — there
+is no API to automate the export, and Rekey deliberately doesn't read your
+browser stores directly. The watched folder is remembered across launches via a
+security-scoped bookmark; *Stop* forgets it.
 
 ---
 

@@ -13,10 +13,14 @@
     <true/>
 
     <!-- Access to files the user explicitly picks in the import panel, with
-         write so the source CSV can be securely overwritten and deleted. This
-         is "what the import file picker grants" — no persistent bookmarks, no
-         broad filesystem access, no downloads/desktop/documents entitlements. -->
+         write so the source CSV can be securely overwritten and deleted. -->
     <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Persist access to the folder the user picks for the opt-in auto-import
+         watcher (e.g. Downloads), across launches, via a security-scoped
+         bookmark. Only used when the user enables folder watching. -->
+    <key>com.apple.security.files.bookmarks.app-scope</key>
     <true/>
 </dict>
 </plist>

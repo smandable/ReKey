@@ -37,6 +37,8 @@ struct ImportView: View {
                     .padding(6)
                 }
 
+                watchFolderBox
+
                 if !model.files.isEmpty {
                     ForEach(model.files) { file in
                         fileCard(file)
@@ -58,6 +60,40 @@ struct ImportView: View {
             if case let .success(urls) = result {
                 for url in urls { model.importFile(at: url) }
             }
+        }
+    }
+
+    private var watchFolderBox: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                if let folder = model.watchedFolder {
+                    HStack {
+                        Image(systemName: "eye.fill").foregroundStyle(.green)
+                        Text("Watching **\(folder.lastPathComponent)** — new password exports import automatically.")
+                            .font(.callout)
+                        Spacer()
+                        Button("Stop") { model.stopWatching() }.controlSize(.small)
+                    }
+                    if let message = model.autoImportMessage {
+                        Label(message, systemImage: "checkmark.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                } else {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Auto-import").font(.callout.weight(.medium))
+                            Text("Watch a folder (e.g. Downloads) and import recognized password CSVs as they appear — you still export manually.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button { model.chooseWatchFolder() } label: {
+                            Label("Choose folder…", systemImage: "eye")
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+            .padding(6)
         }
     }
 
