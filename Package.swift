@@ -18,6 +18,9 @@ let package = Package(
         ]),
         // Exposed so the Xcode app target can link the UI from the local package.
         .library(name: "RekeyUI", targets: ["RekeyUI"]),
+        // SEPARATE, opt-in cleanup tool. Deliberately NOT part of the sandboxed
+        // app: it does direct (but decrypt-free) deletes from browser stores.
+        .executable(name: "rekey-cleanup", targets: ["RekeyCleanup"]),
     ],
     targets: [
         // MARK: Core logic (no SwiftUI)
@@ -41,6 +44,14 @@ let package = Package(
         .target(name: "AuditEngine", dependencies: ["Model", "ImportKit", "HIBPClient"]),
         .target(name: "FixQueue", dependencies: ["Model", "PasswordGenerator", "ResetRouter"]),
 
+        // MARK: Opt-in cleanup tool (separate from the sandboxed app)
+        .target(
+            name: "BrowserStore",
+            dependencies: ["Model"],
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
+        .executableTarget(name: "RekeyCleanup", dependencies: ["BrowserStore"]),
+
         // MARK: UI + app
         .target(name: "RekeyUI", dependencies: [
             "Model", "ImportKit", "AuditEngine", "HIBPClient",
@@ -58,5 +69,6 @@ let package = Package(
         .testTarget(name: "GenerationTests", dependencies: ["PasswordGenerator"]),
         .testTarget(name: "ResetTests", dependencies: ["ResetRouter"]),
         .testTarget(name: "FixQueueTests", dependencies: ["FixQueue", "Model", "PasswordGenerator", "ResetRouter"]),
+        .testTarget(name: "BrowserStoreTests", dependencies: ["BrowserStore"]),
     ]
 )
