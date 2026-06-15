@@ -166,13 +166,13 @@ public final class AppModel {
     // MARK: - Fix queue bridge
 
     public func enqueueFix(for credential: ImportedCredential) async {
-        try? await fixQueue.enqueue(credential: credential)
+        _ = try? await fixQueue.enqueue(credential: credential)
     }
 
     public func enqueueAllFlagged() async {
         guard let report else { return }
         for cred in allCredentials where report.findingsByCredential[cred.id] != nil {
-            try? await fixQueue.enqueue(credential: cred)
+            _ = try? await fixQueue.enqueue(credential: cred)
         }
         section = .fixing
     }

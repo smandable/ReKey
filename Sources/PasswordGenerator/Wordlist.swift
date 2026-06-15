@@ -1,4 +1,5 @@
 import Foundation
+import Model
 
 /// Loads and caches the vendored EFF large diceware wordlist.
 ///
@@ -17,9 +18,11 @@ enum Wordlist {
     /// Parse the bundled wordlist into its words. Throws if the resource is
     /// missing, unreadable, or malformed.
     static func load() throws -> [String] {
-        guard let url = Bundle.module.url(
+        guard let url = RekeyResources.url(
             forResource: resourceName,
-            withExtension: resourceExtension
+            withExtension: resourceExtension,
+            moduleBundleName: "Rekey_PasswordGenerator",
+            fallback: .module
         ) else {
             throw PasswordError.wordlistUnavailable
         }

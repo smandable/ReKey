@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Sandbox: on. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- Outgoing network client: the only network capability. Used solely for
+         the HIBP k-anonymity range query and on-demand change-password URL
+         resolution. There is no network server entitlement. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Access to files the user explicitly picks in the import panel, with
+         write so the source CSV can be securely overwritten and deleted. This
+         is "what the import file picker grants" — no persistent bookmarks, no
+         broad filesystem access, no downloads/desktop/documents entitlements. -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+</dict>
+</plist>

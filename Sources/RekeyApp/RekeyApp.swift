@@ -8,6 +8,14 @@ import RekeyUI
 /// Passwords, or the system keychain.
 @main
 struct RekeyApp: App {
+    init() {
+        // Headless resource smoke test for packaging verification; runs before
+        // any window and exits.
+        if CommandLine.arguments.contains("--selftest") {
+            RekeySelfTest.runAndExit()
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

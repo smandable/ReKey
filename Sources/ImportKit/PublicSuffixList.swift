@@ -1,4 +1,5 @@
 import Foundation
+import Model
 
 /// The Mozilla Public Suffix List, used to compute the registrable domain
 /// (eTLD+1) of a host.
@@ -45,7 +46,8 @@ public struct PublicSuffixList: Sendable {
     /// Load the vendored list bundled with this module.
     public static func bundled() -> PublicSuffixList {
         guard
-            let url = Bundle.module.url(forResource: "public_suffix_list", withExtension: "dat"),
+            let url = RekeyResources.url(forResource: "public_suffix_list", withExtension: "dat",
+                                         moduleBundleName: "Rekey_ImportKit", fallback: .module),
             let text = try? String(contentsOf: url, encoding: .utf8)
         else {
             // Fall back to an empty list (default rule "*" still applies, so
