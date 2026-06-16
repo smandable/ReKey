@@ -217,6 +217,12 @@ public final class FixQueue {
         setStatus(itemID, to: .done, from: [.opened])
     }
 
+    /// User opened the change page but backed out (changed their mind, didn't
+    /// actually change the password) — return it to pending so they can re-decide.
+    public func cancelOpen(itemID: UUID) {
+        setStatus(itemID, to: .pending, from: [.opened])
+    }
+
     /// User chooses not to fix this one. Allowed from any non-terminal state.
     public func skip(itemID: UUID) {
         guard let i = index(of: itemID), items[i].status != .done else { return }

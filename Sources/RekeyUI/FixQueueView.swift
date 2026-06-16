@@ -630,6 +630,11 @@ private struct FixCard: View {
                 } label: { Label("Copy & open", systemImage: "doc.on.doc") }
                     .buttonStyle(.borderedProminent)
             case .opened:
+                Button("Back") {
+                    model.fixQueue.cancelOpen(itemID: item.id)
+                    confirmedSaved = false
+                }
+                .help("Changed your mind? Return this to pending — you can Skip it or Copy & open again later.")
                 Toggle("Browser saved it", isOn: $confirmedSaved)
                     .toggleStyle(.checkbox).font(.caption)
                     .help("Confirm your browser actually saved the new password before marking done — Rekey can't recover it afterward.")

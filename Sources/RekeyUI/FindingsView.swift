@@ -196,7 +196,7 @@ private struct CredentialRow: View {
                         // has, so a cleanup match isn't broken by the typed email.
                         HStack(spacing: 4) {
                             Text("Username:").foregroundStyle(.secondary)
-                            TextField("add your email…", text: usernameBinding)
+                            TextField("add username…", text: usernameBinding)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(maxWidth: 240)
                         }
@@ -269,7 +269,7 @@ private struct CredentialRow: View {
                     if isStray {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("No username saved on this one, though the site also has a login *with* one. Your browser likely stored it without a username (common on multi-step sign-in forms) — making this a **real second account** — or it's a leftover duplicate of the other.")
-                            Text("• Real account? Label it with your email above (so you recognize it), then **Add to queue** and fix it.")
+                            Text("• Real account? Add the username above (so you recognize it), then **Add to queue** and fix it.")
                             Text("• A leftover? \(StaleLoginGuidance.manualSteps(for: cred.source, domain: cred.site)) Then **Ignore**.")
                         }
                         .font(.caption).foregroundStyle(.secondary)
@@ -279,7 +279,7 @@ private struct CredentialRow: View {
                         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                     }
                     if isNoUsername {
-                        Text("No username saved — your browser stored this login without one (common when the email and password are on separate pages), not that the account isn't real. Type your email above to label it as yours here, then **Add to queue** to fix it, or **Ignore** to keep it. The real fix is to add the email to this entry in your browser's Password Manager — then autofill works and it stops showing up here.")
+                        Text("No username saved — your browser stored this login without one (common when the username and password are on separate pages), not that the account isn't real. Type the username above to label it as yours here, then **Add to queue** to fix it, or **Ignore** to keep it. The real fix is to add the username to this entry in your browser's Password Manager — then autofill works and it stops showing up here.")
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

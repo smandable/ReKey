@@ -127,6 +127,20 @@ struct FixQueueTests {
         #expect(queue.items.first?.status == .skipped)
     }
 
+    @Test("cancelOpen backs an opened item out to pending")
+    func cancelOpen() async throws {
+        let (queue, _, _) = try makeQueue()
+        let id = try #require(try await queue.enqueue(credential: credential()))
+        queue.approve(itemID: id)
+        #expect(queue.items.first?.status == .opened)
+        queue.cancelOpen(itemID: id)
+        #expect(queue.items.first?.status == .pending)
+        // No-op from other states.
+        queue.skip(itemID: id)
+        queue.cancelOpen(itemID: id)
+        #expect(queue.items.first?.status == .skipped)
+    }
+
     @Test("Regenerate replaces the new password")
     func regenerate() async throws {
         let (queue, _, _) = try makeQueue()
