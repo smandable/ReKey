@@ -623,11 +623,22 @@ public final class AppModel {
     public func enqueueAllFlagged() async {
         guard let report else { return }
         let g = currentGenerationChoice()
-        for cred in allCredentials where report.findingsByCredential[cred.id] != nil && !isFixed(cred) {
-            _ = try? await fixQueue.enqueue(credential: cred,
+        // Append every flagged credential up front so the whole batch shows at once…
+        let ids = allCredentials
+            .filter { report.findingsByCredential[$0.id] != nil && !isFixed($0) }
+            .compactMap {
+                try? fixQueue.appendPending(credential: $0,
                                             policy: g.passphrase ? nil : g.policy,
                                             passphrase: g.passphrase)
-        }
+            }
         section = .fixing
+        // …then resolve their change URLs concurrently (URLSession throttles its own
+        // connections), so one slow host doesn't gate the rest of the batch.
+        let queue = fixQueue
+        await withTaskGroup(of: Void.self) { group in
+            for id in ids {
+                group.addTask { await queue.resolveChangeURL(itemID: id) }
+            }
+        }
     }
 }

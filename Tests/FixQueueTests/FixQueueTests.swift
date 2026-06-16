@@ -154,6 +154,20 @@ struct FixQueueTests {
         #expect(queue.items.first?.changeURL?.absoluteString == "https://acme.example/.well-known/change-password")
     }
 
+    @Test("appendPending shows the item instantly; resolveChangeURL upgrades it later")
+    func appendThenResolve() async throws {
+        let (queue, _, _) = try makeQueue()                 // stub resolves to well-known
+        let id = try #require(try queue.appendPending(credential: credential()))
+        // Visible at once, with a usable placeholder and not-yet-resolved source.
+        #expect(queue.items.count == 1)
+        #expect(queue.items.first?.changeURL != nil)
+        #expect(queue.resolutionSources[id] == .siteRoot)
+        // The probe upgrades the URL and records the real source.
+        await queue.resolveChangeURL(itemID: id)
+        #expect(queue.items.first?.changeURL?.absoluteString == "https://acme.example/.well-known/change-password")
+        #expect(queue.resolutionSources[id] == .wellKnown)
+    }
+
     @Test("Regenerate as a passphrase replaces with a multi-word value")
     func regeneratePassphrase() async throws {
         let (queue, _, _) = try makeQueue()

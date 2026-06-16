@@ -85,30 +85,41 @@ public final class FixQueue {
 
     // MARK: - Building the queue
 
-    /// Add a credential to the fix queue: generate the replacement, append the
-    /// item *immediately* so the user's click registers at once, then resolve its
-    /// change-password URL and fill it in. Resolution is a per-item network probe
-    /// (never batched across the account list) that can be slow for an
-    /// unresponsive host — appending first means that never delays the card
-    /// appearing; it just shows the site root until the precise URL arrives.
+    /// Add a credential to the fix queue: append it immediately, then resolve its
+    /// change-password URL and fill it in. No-op if already queued; returns the id.
     ///
-    /// No-op if the credential is already queued. Returns the new item's id.
+    /// This is the single-add path. A batch (`enqueueAllFlagged`) instead calls
+    /// `appendPending` for every item up front and then `resolveChangeURL(itemID:)`
+    /// concurrently, so the whole queue shows at once and one slow host doesn't gate
+    /// the rest.
     @discardableResult
     public func enqueue(
         credential: ImportedCredential,
         policy: PasswordPolicy? = nil,
         passphrase: Bool = false
     ) async throws -> UUID? {
+        guard let id = try appendPending(credential: credential, policy: policy, passphrase: passphrase)
+        else { return nil }
+        await resolveChangeURL(itemID: id)
+        return id
+    }
+
+    /// Append a pending item immediately — no network — with the site root as a
+    /// usable placeholder change URL. Returns the new id, or nil if the credential
+    /// is already queued. Generating and appending with no `await` in between also
+    /// closes the duplicate-enqueue race.
+    @discardableResult
+    public func appendPending(
+        credential: ImportedCredential,
+        policy: PasswordPolicy? = nil,
+        passphrase: Bool = false
+    ) throws -> UUID? {
         guard !items.contains(where: { $0.credentialID == credential.id }) else { return nil }
 
         let newPassword = try passphrase
             ? generator.generatePassphrase()
             : generator.generate(policy ?? defaultPolicy)
 
-        // Append before the one suspension point below: the item shows instantly,
-        // and there's no window for a duplicate enqueue to slip in (guard→append
-        // run without an await between them), so no post-resolution re-check is
-        // needed. The site root is a usable placeholder until the probe returns.
         let item = FixItem(
             credentialID: credential.id,
             registrableDomain: credential.registrableDomain,
@@ -120,13 +131,20 @@ public final class FixQueue {
         )
         items.append(item)
         resolutionSources[item.id] = .siteRoot
-
-        let resolution = await router.resolveChangeURL(for: credential.registrableDomain)
-        if let i = index(of: item.id) {
-            items[i].changeURL = resolution.url
-            resolutionSources[item.id] = resolution.source
-        }
         return item.id
+    }
+
+    /// Resolve an already-appended item's change-password URL (a network probe)
+    /// and fill it in, upgrading the site-root placeholder. Safe to run
+    /// concurrently across items — each touches only its own row and re-checks the
+    /// item still exists after the await.
+    public func resolveChangeURL(itemID: UUID) async {
+        guard let i = index(of: itemID) else { return }
+        let domain = items[i].registrableDomain
+        let resolution = await router.resolveChangeURL(for: domain)
+        guard let j = index(of: itemID) else { return }
+        items[j].changeURL = resolution.url
+        resolutionSources[itemID] = resolution.source
     }
 
     /// Generate a fresh replacement password for an item (regenerate button +
