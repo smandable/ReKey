@@ -78,12 +78,18 @@ struct FindingsView: View {
         let progress = model.fixProgress
         let ignored = ignoredCount(report)
         let crossEco = crossEcosystemAccounts(report)
+        let multiBrowser = multiBrowserAccountCount(report)
+        var parts = ["\(report.findingsByCredential.count) reused/compromised",
+                     "\(report.weak.count) weak",
+                     "across \(report.flaggedDomainGroups.count) sites"]
+        if crossEco > 0 { parts.append("\(crossEco) in Apple + a browser") }
+        if multiBrowser > 0 { parts.append("\(multiBrowser) in 2+ browsers") }
+        if ignored > 0 { parts.append("\(ignored) ignored") }
+        let summaryLine = parts.joined(separator: " · ") + "."
         return HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Findings").font(.largeTitle.bold())
-                Text("\(report.findingsByCredential.count) reused/compromised · \(report.weak.count) weak · across \(report.flaggedDomainGroups.count) sites"
-                     + (crossEco > 0 ? " · \(crossEco) in Apple + a browser" : "")
-                     + (ignored > 0 ? " · \(ignored) ignored" : "") + ".")
+                Text(summaryLine)
                     .foregroundStyle(.secondary)
                 if progress.total > 0 {
                     HStack(spacing: 8) {
@@ -146,6 +152,14 @@ struct FindingsView: View {
         }
         return keys.count
     }
+    /// Distinct accounts saved across 2+ different browsers (don't sync).
+    private func multiBrowserAccountCount(_ report: AuditReport) -> Int {
+        var keys = Set<String>()
+        for cred in report.credentials where report.multiBrowserAccounts[cred.id] != nil {
+            keys.insert("\(cred.registrableDomain)|\(cred.username)")
+        }
+        return keys.count
+    }
     /// A domain still has an *active* (non-ignored) finding.
     private func hasActiveIssue(_ group: DomainGroup, _ report: AuditReport) -> Bool {
         group.credentials.contains { isFlagged($0, report) && !model.isIgnored($0) }
@@ -185,6 +199,9 @@ private struct CredentialRow: View {
         let isNoUsername = cred.username.isEmpty && !isStray
         let hasSecurityIssue = finding != nil || isWeak
         let ignored = model.isIgnored(cred)
+        // Same account also saved in other browsers (don't sync to each other).
+        let otherBrowsers = model.otherBrowsers(for: cred)
+        let isMultiBrowser = !otherBrowsers.isEmpty
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -221,7 +238,7 @@ private struct CredentialRow: View {
                 }
             }
 
-            if hasSecurityIssue || isCrossEcosystem || isStray || isNoUsername {
+            if hasSecurityIssue || isCrossEcosystem || isStray || isNoUsername || isMultiBrowser {
                 HStack(spacing: 6) {
                     if ignored && (hasSecurityIssue || isStray || isNoUsername) {
                         PillBadge(icon: "bell.slash.fill", text: "Ignored", color: .gray)
@@ -238,6 +255,11 @@ private struct CredentialRow: View {
                         if isCrossEcosystem {
                             PillBadge(icon: "iphone",
                                       text: cred.source.isApple ? "Also in a browser" : "Also in Apple Passwords",
+                                      color: .orange)
+                        }
+                        if isMultiBrowser {
+                            PillBadge(icon: "rectangle.on.rectangle",
+                                      text: "In \(otherBrowsers.count + 1) browsers",
                                       color: .orange)
                         }
                         if isStray {
@@ -263,6 +285,11 @@ private struct CredentialRow: View {
                 if !(ignored && (hasSecurityIssue || isStray || isNoUsername)) {
                     if isCrossEcosystem {
                         Text("Saved in both Apple Passwords and a browser — these don't sync, so update both or your iPhone may keep autofilling the old password.")
+                            .font(.caption).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if isMultiBrowser {
+                        Text("Also saved in \(otherBrowsers.map(\.displayName).joined(separator: ", ")) — these browsers don't sync to each other, so changing the password here leaves the others on the old one. A password manager keeps one copy everywhere.")
                             .font(.caption).foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }

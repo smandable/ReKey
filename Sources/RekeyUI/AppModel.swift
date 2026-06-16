@@ -396,6 +396,12 @@ public final class AppModel {
         report?.crossEcosystemDuplicates.contains(credentialID) ?? false
     }
 
+    /// The other browser stores this same account is also saved in (besides its
+    /// own) — copies that don't sync. Empty unless it's in 2+ browsers.
+    public func otherBrowsers(for cred: ImportedCredential) -> [BrowserSource] {
+        (report?.multiBrowserAccounts[cred.id] ?? []).filter { $0 != cred.source }
+    }
+
     private func reindexCredentials() {
         // Collapse exact duplicates: the same (browser, site, username, password)
         // exported as multiple rows — e.g. one Arc login associated with two

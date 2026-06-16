@@ -41,6 +41,12 @@ public struct AuditReport: Sendable {
     /// browser stored without a username (e.g. a multi-step sign-in form). The UI
     /// offers fixing (and supplying the email) as well as deleting, not just junk.
     public let strayBlankUsername: Set<UUID>
+    /// The same (site, username) account saved in 2+ different BROWSER stores
+    /// (Arc/Chrome/Firefox/… — Apple↔browser is `crossEcosystemDuplicates`). These
+    /// silos don't sync, so a fix in one leaves the others on the old password.
+    /// Maps each such credential to the browser stores its account spans, for a
+    /// "consolidate into one password manager" nudge.
+    public let multiBrowserAccounts: [UUID: [BrowserSource]]
     /// All domains, grouped, sorted alphabetically by registrable domain.
     public let domainGroups: [DomainGroup]
 
@@ -175,6 +181,17 @@ public struct AuditCoordinator: Sendable {
             for c in group where c.username.isEmpty { strayBlank.insert(c.id) }
         }
 
+        // Same account saved across 2+ different browsers (non-Apple silos that
+        // don't sync). Map each such credential to the browser stores its account
+        // spans, so the UI can nudge "consolidate into one password manager".
+        var multiBrowser: [UUID: [BrowserSource]] = [:]
+        for (_, group) in Dictionary(grouping: credentials, by: { "\($0.registrableDomain)|\($0.username)" }) {
+            let browsers = Set(group.map(\.source).filter { !$0.isApple })
+            guard browsers.count >= 2 else { continue }
+            let sorted = browsers.sorted { $0.displayName < $1.displayName }
+            for c in group where !c.source.isApple { multiBrowser[c.id] = sorted }
+        }
+
         // A credential's issue severity = its finding severity, or 0 if it's only
         // weak (low priority but still flagged), or -1 if clean.
         func severity(of id: UUID) -> Int {
@@ -206,6 +223,7 @@ public struct AuditCoordinator: Sendable {
             weak: weak,
             crossEcosystemDuplicates: crossEcosystem,
             strayBlankUsername: strayBlank,
+            multiBrowserAccounts: multiBrowser,
             domainGroups: domainGroups
         )
     }

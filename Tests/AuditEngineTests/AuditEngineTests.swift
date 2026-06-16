@@ -124,6 +124,31 @@ struct AuditEngineTests {
         #expect(r.crossEcosystemDuplicates == [appleChase.id, chromeChase.id])
     }
 
+    @Test("Flags an account saved across 2+ browsers; Apple-only pairings don't count")
+    func multiBrowserAccounts() async {
+        func cred(_ source: BrowserSource, _ domain: String, _ user: String) -> ImportedCredential {
+            ImportedCredential(source: source, title: nil, rawURL: "https://\(domain)/",
+                               registrableDomain: domain, username: user,
+                               password: Secret(UUID().uuidString), notes: nil, hasTOTP: false)
+        }
+        let arcGH    = cred(.arc,     "github.com", "sean")   // ┐ same account in 3 browsers
+        let chromeGH = cred(.chrome,  "github.com", "sean")   // │ → all flagged, span = 3
+        let ffGH     = cred(.firefox, "github.com", "sean")   // ┘
+        let soloArc  = cred(.arc,     "solo.com",   "sean")   // one browser → not flagged
+        let appleX   = cred(.applePasswords, "x.com", "sean") // ┐ Apple + 1 browser → cross-eco,
+        let chromeX  = cred(.chrome,         "x.com", "sean") // ┘ only 1 non-Apple → not multi-browser
+
+        let coordinator = AuditCoordinator(compromiseChecker: StubChecker(compromised: [], count: 0))
+        let r = await coordinator.audit(credentials: [arcGH, chromeGH, ffGH, soloArc, appleX, chromeX])
+
+        for c in [arcGH, chromeGH, ffGH] {
+            #expect(r.multiBrowserAccounts[c.id]?.count == 3)
+        }
+        #expect(r.multiBrowserAccounts[soloArc.id] == nil)
+        #expect(r.multiBrowserAccounts[chromeX.id] == nil)   // Apple+Chrome is cross-eco, not multi-browser
+        #expect(r.multiBrowserAccounts[appleX.id] == nil)
+    }
+
     @Test("Flags a blank-username login only when the site also has a real one")
     func strayBlankUsername() async {
         func cred(_ source: BrowserSource, _ domain: String, _ user: String) -> ImportedCredential {
