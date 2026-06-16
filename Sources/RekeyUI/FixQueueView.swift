@@ -255,13 +255,13 @@ private struct FixCard: View {
             Spacer()
             switch item.status {
             case .pending:
-                Button("Skip", role: .cancel) { model.fixQueue.skip(itemID: item.id) }
+                Button("Skip", role: .cancel) { model.recordFixSkipped(item) }
                 Button {
                     model.fixQueue.approve(itemID: item.id)
                 } label: { Label("Approve", systemImage: "checkmark") }
                     .buttonStyle(.borderedProminent)
             case .opened:
-                Button("Mark done") { model.fixQueue.markDone(itemID: item.id) }
+                Button("Mark done") { model.recordFixDone(item) }
                     .buttonStyle(.borderedProminent)
             case .done:
                 Label("Done", systemImage: "checkmark.circle.fill").foregroundStyle(.green)

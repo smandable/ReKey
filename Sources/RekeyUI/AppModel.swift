@@ -74,6 +74,31 @@ public final class AppModel {
 
     public let fixQueue: FixQueue
 
+    // MARK: Fix progress (persisted across launches — site+username keys only, NO passwords)
+    public private(set) var completedKeys: Set<String> = []
+    public private(set) var skippedKeys: Set<String> = []
+    private let completedDefaultsKey = "rekey.completedKeys"
+    private let skippedDefaultsKey = "rekey.skippedKeys"
+
+    /// Browser-independent identity for "this account is fixed" — changing the
+    /// password on the site resolves it regardless of which browser saved it.
+    public static func progressKey(for credential: ImportedCredential) -> String {
+        "\(credential.registrableDomain)|\(credential.username)"
+    }
+    public func isFixed(_ credential: ImportedCredential) -> Bool {
+        completedKeys.contains(Self.progressKey(for: credential))
+    }
+
+    /// (fixed, total) over flagged credentials, deduped by site+username.
+    public var fixProgress: (done: Int, total: Int) {
+        guard let report else { return (0, 0) }
+        var flagged = Set<String>()
+        for cred in allCredentials where report.findingsByCredential[cred.id] != nil || report.weak.contains(cred.id) {
+            flagged.insert(Self.progressKey(for: cred))
+        }
+        return (flagged.intersection(completedKeys).count, flagged.count)
+    }
+
     // MARK: Change-page browser preference
     /// A browser the user can route change pages to. `appURL == nil` is the
     /// "system default" option.
@@ -110,7 +135,38 @@ public final class AppModel {
             opener: opener
         )
         loadBrowserPreference()
+        loadProgress()
         restoreWatchedFolder()
+    }
+
+    // MARK: - Fix progress persistence
+
+    /// Mark a fix done — advances the queue item and records it persistently.
+    public func recordFixDone(_ item: FixItem) {
+        fixQueue.markDone(itemID: item.id)
+        guard let cred = credential(item.credentialID) else { return }
+        let key = Self.progressKey(for: cred)
+        completedKeys.insert(key)
+        skippedKeys.remove(key)
+        saveProgress()
+    }
+
+    /// Skip a fix — advances the queue item and records it persistently.
+    public func recordFixSkipped(_ item: FixItem) {
+        fixQueue.skip(itemID: item.id)
+        guard let cred = credential(item.credentialID) else { return }
+        skippedKeys.insert(Self.progressKey(for: cred))
+        saveProgress()
+    }
+
+    private func saveProgress() {
+        UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
+        UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)
+    }
+
+    private func loadProgress() {
+        completedKeys = Set(UserDefaults.standard.stringArray(forKey: completedDefaultsKey) ?? [])
+        skippedKeys = Set(UserDefaults.standard.stringArray(forKey: skippedDefaultsKey) ?? [])
     }
 
     // MARK: - Change-page browser
@@ -364,7 +420,7 @@ public final class AppModel {
 
     public func enqueueAllFlagged() async {
         guard let report else { return }
-        for cred in allCredentials where report.findingsByCredential[cred.id] != nil {
+        for cred in allCredentials where report.findingsByCredential[cred.id] != nil && !isFixed(cred) {
             _ = try? await fixQueue.enqueue(credential: cred)
         }
         section = .fixing

@@ -29,12 +29,33 @@ public struct AuditReport: Sendable {
     public let reusedAcrossSites: Set<UUID>
     /// Credentials duplicated within a site.
     public let duplicatedWithinSite: Set<UUID>
+    /// Credentials with a weak password (short / low-variety / common).
+    public let weak: Set<UUID>
     /// All domains, grouped, sorted alphabetically by registrable domain.
     public let domainGroups: [DomainGroup]
 
     /// Only the domain groups that contain at least one finding, alphabetical.
     public var flaggedDomainGroups: [DomainGroup] {
         domainGroups.filter(\.hasFinding)
+    }
+
+    /// Domain groups sorted **worst-first**: highest severity, then biggest reuse
+    /// cluster, then important domains, then alphabetical. For the priority view.
+    public var prioritizedDomainGroups: [DomainGroup] {
+        domainGroups.sorted { a, b in
+            if a.highestSeverity != b.highestSeverity { return a.highestSeverity > b.highestSeverity }
+            let ca = maxClusterSize(for: a), cb = maxClusterSize(for: b)
+            if ca != cb { return ca > cb }
+            let ia = DomainPriority.isImportant(a.registrableDomain) ? 1 : 0
+            let ib = DomainPriority.isImportant(b.registrableDomain) ? 1 : 0
+            if ia != ib { return ia > ib }
+            return a.registrableDomain < b.registrableDomain
+        }
+    }
+
+    /// Size of the largest reuse cluster any credential in `group` belongs to.
+    public func maxClusterSize(for group: DomainGroup) -> Int {
+        group.credentials.compactMap { cluster(for: $0.id)?.credentialIDs.count }.max() ?? 0
     }
 
     /// The cluster (if any) that a given credential belongs to.
@@ -91,17 +112,27 @@ public struct AuditCoordinator: Sendable {
             }
         }
 
+        // Weak-password scan (independent of reuse/compromise).
+        var weak: Set<UUID> = []
+        for c in credentials where PasswordStrength.isWeak(c.password) { weak.insert(c.id) }
+
+        // A credential's issue severity = its finding severity, or 0 if it's only
+        // weak (low priority but still flagged), or -1 if clean.
+        func severity(of id: UUID) -> Int {
+            let finding = findingsByCredential[id]?.kind.severity ?? -1
+            let weakSeverity = weak.contains(id) ? 0 : -1
+            return max(finding, weakSeverity)
+        }
+
         // Group by registrable domain, alphabetical.
         let grouped = Dictionary(grouping: credentials, by: \.registrableDomain)
         let domainGroups: [DomainGroup] = grouped
             .map { (domain, creds) in
-                let severity = creds
-                    .compactMap { findingsByCredential[$0.id]?.kind.severity }
-                    .max() ?? -1
+                let highest = creds.map { severity(of: $0.id) }.max() ?? -1
                 return DomainGroup(
                     registrableDomain: domain,
                     credentials: creds.sorted { $0.username < $1.username },
-                    highestSeverity: severity
+                    highestSeverity: highest
                 )
             }
             .sorted { $0.registrableDomain < $1.registrableDomain }
@@ -113,6 +144,7 @@ public struct AuditCoordinator: Sendable {
             compromised: compromised,
             reusedAcrossSites: reuse.reusedAcrossSites,
             duplicatedWithinSite: reuse.duplicatedWithinSite,
+            weak: weak,
             domainGroups: domainGroups
         )
     }

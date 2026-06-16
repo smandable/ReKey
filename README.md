@@ -116,8 +116,13 @@ security-scoped bookmark; *Stop* forgets it.
    rows (passkeys, federated sign-in) are skipped and counted. TOTP seeds are
    flagged but never stored.
 2. **Audit** — buckets passwords in memory to find reuse across sites and
-   duplicates within a site, and checks each against HIBP. Findings are grouped
-   by registrable domain, alphabetically, with "shared with: …" clustering.
+   duplicates within a site, checks each against HIBP, and flags **weak**
+   passwords (short / low-variety / common). Findings are grouped by registrable
+   domain with "shared with: …" clustering, and sorted **worst-first** by default
+   — highest severity, then biggest reuse cluster, then important domains (email /
+   finance / identity) — with an A–Z toggle. A **"Fixed X of Y"** tracker and
+   per-account *Fixed* badges persist across launches (keyed by site + username —
+   never the password), so a multi-week remediation stays trackable.
 3. **Fix queue** — for each credential you choose to fix, a preview card shows the
    masked old password (with reveal), a freshly generated replacement (with
    regenerate + policy controls + a passphrase option), and the resolved change
