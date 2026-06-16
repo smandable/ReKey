@@ -49,6 +49,13 @@ public actor HIBPClient {
     /// - Empty-password entries resolve to `.unknown`.
     /// - Every input key appears in the output.
     public func check(_ secrets: [UUID: Secret]) async -> [UUID: CompromisedStatus] {
+        await check(secrets, onProgress: { _, _ in })
+    }
+
+    public func check(
+        _ secrets: [UUID: Secret],
+        onProgress: @Sendable (_ done: Int, _ total: Int) -> Void
+    ) async -> [UUID: CompromisedStatus] {
         guard !secrets.isEmpty else { return [:] }
 
         // 1. Compute hash parts once per id (skip empties), and gather the set
@@ -64,11 +71,17 @@ public actor HIBPClient {
             }
         }
 
-        // 2. Fetch the missing ranges with bounded concurrency. Results merge
-        //    into the cache. A `nil` result means the range could not be
-        //    resolved (offline / repeated failure) and is left uncached.
+        // 2. Fetch the missing ranges with bounded concurrency, reporting one
+        //    progress tick per range as it resolves. Results merge into the
+        //    cache. A `nil` result means the range could not be resolved
+        //    (offline / repeated failure) and is left uncached. The total is the
+        //    deduped fetch count — work already cached costs nothing here.
+        let total = prefixesToFetch.count
+        onProgress(0, total)
         if !prefixesToFetch.isEmpty {
-            let fetched = await fetchRanges(Array(prefixesToFetch))
+            let fetched = await fetchRanges(Array(prefixesToFetch)) { done in
+                onProgress(done, total)
+            }
             for (prefix, suffixes) in fetched {
                 rangeCache[prefix] = suffixes
             }
@@ -100,13 +113,21 @@ public actor HIBPClient {
     /// Fetch each prefix's range, with at most `maxConcurrentRequests` requests
     /// in flight. Returns only successfully resolved prefixes; failures are
     /// omitted so the caller treats them as `.unknown`.
-    private func fetchRanges(_ prefixes: [String]) async -> [String: [String: Int]] {
+    ///
+    /// `onRangeDone(done)` is called once per range as it resolves, with the
+    /// running count of completed ranges (1...prefixes.count), so callers can
+    /// report determinate progress.
+    private func fetchRanges(
+        _ prefixes: [String],
+        onRangeDone: @Sendable (_ done: Int) -> Void = { _ in }
+    ) async -> [String: [String: Int]] {
         await withTaskGroup(
             of: (String, [String: Int]?).self,
             returning: [String: [String: Int]].self
         ) { group in
             var resolved: [String: [String: Int]] = [:]
             var index = 0
+            var completed = 0
             let inFlightLimit = min(maxConcurrentRequests, prefixes.count)
 
             // Capture immutable copies for use inside the @Sendable closures.
@@ -131,6 +152,8 @@ public actor HIBPClient {
 
             // Drain and refill to keep the pipeline bounded.
             while let (prefix, suffixes) = await group.next() {
+                completed += 1
+                onRangeDone(completed)
                 if let suffixes {
                     resolved[prefix] = suffixes
                 }

@@ -184,24 +184,48 @@ struct ImportView: View {
     }
 
     private var auditBar: some View {
-        HStack {
-            Text("\(model.allCredentials.count) credentials from \(model.files.count) file(s)" +
-                 (model.totalSkipped > 0 ? " · \(model.totalSkipped) skipped" : ""))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button {
-                Task { await model.runAudit() }
-            } label: {
-                if model.isAuditing {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label("Run audit", systemImage: "magnifyingglass")
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("\(model.allCredentials.count) credentials from \(model.files.count) file(s)" +
+                     (model.totalSkipped > 0 ? " · \(model.totalSkipped) skipped" : ""))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    Task { await model.runAudit() }
+                } label: {
+                    Label(model.isAuditing ? "Auditing…" : "Run audit", systemImage: "magnifyingglass")
                 }
+                .keyboardShortcut(.defaultAction)
+                .disabled(model.isAuditing || model.allCredentials.isEmpty)
+                .controlSize(.large)
             }
-            .keyboardShortcut(.defaultAction)
-            .disabled(model.isAuditing || model.allCredentials.isEmpty)
-            .controlSize(.large)
+
+            if model.isAuditing {
+                auditProgress
+            }
         }
+    }
+
+    /// Determinate bar + live phase/count while the audit runs. The
+    /// compromised-password check (one HIBP lookup per distinct password) is the
+    /// long pole, so a large import shows a real countdown rather than a spinner.
+    private var auditProgress: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let fraction = model.auditFraction {
+                ProgressView(value: fraction).progressViewStyle(.linear)
+            } else {
+                ProgressView().progressViewStyle(.linear)   // indeterminate
+            }
+            if let status = model.auditStatusText {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+                    .animation(.default, value: status)
+            }
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var privacyNote: some View {

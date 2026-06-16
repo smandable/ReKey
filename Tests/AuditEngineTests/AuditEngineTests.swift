@@ -2,16 +2,37 @@ import Testing
 import Foundation
 import Model
 import ImportKit
+import Synchronization
 import TestSupport
 @testable import AuditEngine
 
 /// A stub compromise checker: treats listed plaintext values as breached,
 /// everything else clean. Mirrors the HIBP mock (only "password" is breached).
+///
+/// Implements only `check(_:)`, so it exercises the default (no-op) progress
+/// path of `CompromiseChecking`.
 struct StubChecker: CompromiseChecking {
     let compromised: Set<String>
     let count: Int
     func check(_ secrets: [UUID: Secret]) async -> [UUID: CompromisedStatus] {
         secrets.mapValues { compromised.contains($0.reveal()) ? .compromised(breachCount: count) : .clean }
+    }
+}
+
+/// A checker that DOES report progress, so the coordinator's forwarding of the
+/// compromised-check phase can be observed.
+struct ProgressStubChecker: CompromiseChecking {
+    func check(_ secrets: [UUID: Secret]) async -> [UUID: CompromisedStatus] {
+        secrets.mapValues { _ in .clean }
+    }
+    func check(
+        _ secrets: [UUID: Secret],
+        onProgress: @Sendable (Int, Int) -> Void
+    ) async -> [UUID: CompromisedStatus] {
+        onProgress(0, 2)
+        onProgress(1, 2)
+        onProgress(2, 2)
+        return await check(secrets)
     }
 }
 
@@ -38,6 +59,44 @@ struct AuditEngineTests {
 
     private func id(_ r: AuditReport, _ domain: String, _ username: String) -> UUID? {
         r.credentials.first { $0.registrableDomain == domain && $0.username == username }?.id
+    }
+
+    // MARK: - Progress
+
+    @Test("Progress phases run analyzing → compromised-check → finalizing, in order")
+    func progressPhasesInOrder() async throws {
+        let creds = try mergedCredentials()
+        let coordinator = AuditCoordinator(compromiseChecker: ProgressStubChecker())
+        let phases = Mutex<[AuditProgress.Phase]>([])
+        _ = await coordinator.audit(credentials: creds) { progress in
+            phases.withLock { $0.append(progress.phase) }
+        }
+
+        let recorded = phases.withLock { $0 }
+        #expect(recorded.first == .analyzing)
+        #expect(recorded.last == .finalizing)
+        #expect(recorded.contains(.checkingCompromise(done: 2, total: 2)))
+        // analyzing strictly precedes the compromise ticks, which precede finalizing.
+        let analyzingIdx = recorded.firstIndex(of: .analyzing)
+        let finalizingIdx = recorded.firstIndex(of: .finalizing)
+        let compIdx = recorded.firstIndex { if case .checkingCompromise = $0 { return true }; return false }
+        #expect(analyzingIdx != nil && finalizingIdx != nil && compIdx != nil)
+        if let a = analyzingIdx, let c = compIdx, let f = finalizingIdx {
+            #expect(a < c && c < f)
+        }
+    }
+
+    @Test("A checker without progress support still reports analyzing + finalizing")
+    func progressFallbackForNonReportingChecker() async throws {
+        let creds = try mergedCredentials()
+        let coordinator = AuditCoordinator(compromiseChecker: StubChecker(compromised: [], count: 0))
+        let phases = Mutex<[AuditProgress.Phase]>([])
+        _ = await coordinator.audit(credentials: creds) { progress in
+            phases.withLock { $0.append(progress.phase) }
+        }
+        // StubChecker uses the default no-op progress path, so no compromise tick
+        // is emitted — only the coordinator's own bookend phases.
+        #expect(phases.withLock { $0 } == [.analyzing, .finalizing])
     }
 
     @Test("12 credentials across 8 registrable domains, alphabetical")

@@ -1,5 +1,6 @@
 import Foundation
 import Model
+import Synchronization
 import Testing
 
 @testable import HIBPClient
@@ -233,6 +234,61 @@ struct HIBPClientTests {
         let result = await client.check([:])
         #expect(result.isEmpty)
         #expect(MockURLProtocol.requestCount == 0)
+    }
+
+    // MARK: - Progress reporting
+
+    @Test
+    func progressClimbsMonotonicallyToTheDistinctRangeCount() async {
+        MockURLProtocol.reset()
+        installDefaultHandler()
+        let session = MockURLProtocol.makeSession()
+        let client = HIBPClient(session: session, maxConcurrentRequests: 2)
+
+        // Distinct passwords -> distinct prefixes (collision is astronomically
+        // unlikely), so each is its own unit of fetch work.
+        let secrets: [UUID: Secret] = [
+            UUID(): Secret("password"),
+            UUID(): Secret("alpha-\(UUID().uuidString)"),
+            UUID(): Secret("beta-\(UUID().uuidString)"),
+        ]
+        let ticks = Mutex<[(done: Int, total: Int)]>([])
+        _ = await client.check(secrets) { done, total in
+            ticks.withLock { $0.append((done, total)) }
+        }
+
+        let recorded = ticks.withLock { $0 }
+        #expect(!recorded.isEmpty)
+        let total = recorded.first!.total
+        #expect(total >= 1)
+        // `total` is constant across every tick.
+        #expect(Set(recorded.map(\.total)) == [total])
+        // Starts at the initial 0, ends having resolved every range.
+        #expect(recorded.first?.done == 0)
+        #expect(recorded.map(\.done).max() == total)
+        // `done` never decreases.
+        #expect(recorded.map(\.done) == recorded.map(\.done).sorted())
+    }
+
+    @Test
+    func progressTotalIsZeroWhenEverythingIsCached() async {
+        MockURLProtocol.reset()
+        installDefaultHandler()
+        let session = MockURLProtocol.makeSession()
+        let client = HIBPClient(session: session)
+
+        // Warm the cache for the password prefix.
+        _ = await client.check([UUID(): Secret("password")])
+
+        // A second check for the same prefix fetches nothing, so total == 0.
+        let ticks = Mutex<[(done: Int, total: Int)]>([])
+        _ = await client.check([UUID(): Secret("password")]) { done, total in
+            ticks.withLock { $0.append((done, total)) }
+        }
+        let recorded = ticks.withLock { $0 }
+        #expect(recorded.count == 1)
+        #expect(recorded.first?.done == 0)
+        #expect(recorded.first?.total == 0)
     }
 
     // MARK: - Pure-function checks

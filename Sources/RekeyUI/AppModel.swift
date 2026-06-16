@@ -50,6 +50,34 @@ public final class AppModel {
     public var isAuditing = false
     public var auditError: String?
 
+    /// Live progress of the running audit (nil when not auditing). Private so the
+    /// AuditEngine type doesn't leak into the views — they read the derived
+    /// `auditStatusText` / `auditFraction` instead.
+    private var auditProgress: AuditProgress?
+
+    /// Human-readable status line for the current audit phase, or nil when idle.
+    public var auditStatusText: String? {
+        guard isAuditing else { return nil }
+        switch auditProgress?.phase {
+        case .none, .analyzing:
+            return "Analyzing reuse and duplicates…"
+        case let .checkingCompromise(done, total):
+            guard total > 0 else { return "Checking passwords against Have I Been Pwned…" }
+            return "Checking passwords against Have I Been Pwned — \(done.formatted()) of \(total.formatted())"
+        case .finalizing:
+            return "Finalizing report…"
+        }
+    }
+
+    /// Determinate progress in 0...1 for the compromised-check phase, or nil when
+    /// progress is indeterminate (analysis/finalizing, or nothing to fetch).
+    public var auditFraction: Double? {
+        guard case let .checkingCompromise(done, total)? = auditProgress?.phase, total > 0 else {
+            return nil
+        }
+        return min(1, Double(done) / Double(total))
+    }
+
     /// Which Chromium-based browser the next imported Chromium file is from. The
     /// CSV can't tell Chrome/Arc/Brave/Edge/Opera/Vivaldi apart, so the user
     /// picks. Ignored for Firefox and Apple Passwords files.
@@ -404,10 +432,28 @@ public final class AppModel {
         guard !allCredentials.isEmpty else { return }
         isAuditing = true
         auditError = nil
-        defer { isAuditing = false }
+        auditProgress = nil
+        defer { isAuditing = false; auditProgress = nil }
+
+        // Progress arrives from background threads (the HIBP actor and the
+        // coordinator). Funnel it through an AsyncStream so updates land on the
+        // main actor in order; `.bufferingNewest(1)` coalesces bursts to the
+        // latest value so a flood of ticks can't outrun the UI.
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: AuditProgress.self,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        let consumer = Task { @MainActor in
+            for await progress in stream { self.auditProgress = progress }
+        }
 
         let coordinator = AuditCoordinator(compromiseChecker: hibp)
-        let report = await coordinator.audit(credentials: allCredentials)
+        let report = await coordinator.audit(credentials: allCredentials) { progress in
+            continuation.yield(progress)
+        }
+        continuation.finish()
+        await consumer.value
+
         self.report = report
         self.section = .findings
     }

@@ -64,6 +64,27 @@ public struct AuditReport: Sendable {
     }
 }
 
+/// A coarse progress signal emitted while an audit runs, so the UI can show a
+/// determinate bar and phase label instead of an indeterminate spinner.
+///
+/// The compromised check dominates the wall-clock time (one network round-trip
+/// per distinct password), so its phase carries a `done`/`total` count; the
+/// surrounding analysis/grouping phases are fast and unmeasured.
+public struct AuditProgress: Sendable, Equatable {
+    public enum Phase: Sendable, Equatable {
+        /// Local reuse/duplicate analysis (fast).
+        case analyzing
+        /// Checking passwords against Have I Been Pwned. `done` of `total`
+        /// distinct password ranges have resolved; `total == 0` means nothing
+        /// needed fetching (e.g. all cached or all blank).
+        case checkingCompromise(done: Int, total: Int)
+        /// Scoring weakness and grouping the report (fast).
+        case finalizing
+    }
+    public let phase: Phase
+    public init(phase: Phase) { self.phase = phase }
+}
+
 /// Orchestrates a full audit: reuse/duplicate analysis plus the compromised
 /// check, combined into per-credential findings and an alphabetical,
 /// domain-grouped report.
@@ -78,13 +99,23 @@ public struct AuditCoordinator: Sendable {
         self.checker = compromiseChecker
     }
 
-    public func audit(credentials: [ImportedCredential]) async -> AuditReport {
+    /// - Parameter onProgress: invoked as the audit advances through its phases.
+    ///   May be called from any thread; defaults to a no-op.
+    public func audit(
+        credentials: [ImportedCredential],
+        onProgress: @Sendable (AuditProgress) -> Void = { _ in }
+    ) async -> AuditReport {
+        onProgress(AuditProgress(phase: .analyzing))
         let reuse = ReuseAnalyzer.analyze(credentials)
 
         // Compromised check. The checker dedupes by value internally; pass all.
         var secrets: [UUID: Secret] = [:]
         for c in credentials { secrets[c.id] = c.password }
-        let compromised = await checker.check(secrets)
+        let compromised = await checker.check(secrets) { done, total in
+            onProgress(AuditProgress(phase: .checkingCompromise(done: done, total: total)))
+        }
+
+        onProgress(AuditProgress(phase: .finalizing))
 
         // Combine into one primary finding per credential.
         var findingsByCredential: [UUID: AuditFinding] = [:]
