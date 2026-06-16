@@ -31,6 +31,15 @@ public struct AuditReport: Sendable {
     public let duplicatedWithinSite: Set<UUID>
     /// Credentials with a weak password (short / low-variety / common).
     public let weak: Set<UUID>
+    /// Credentials whose (site, username) account is saved in BOTH an Apple store
+    /// and a non-Apple (browser) store. These copies don't sync to each other, so
+    /// changing one leaves the other stale — most painfully on iPhone/iPad, where
+    /// autofill may come from whichever store you *didn't* update.
+    public let crossEcosystemDuplicates: Set<UUID>
+    /// Blank-username logins on a site that also has a real (named) login —
+    /// usually a leftover/partial save worth deleting in the browser rather than
+    /// fixing (there's no account behind a blank username).
+    public let strayBlankUsername: Set<UUID>
     /// All domains, grouped, sorted alphabetically by registrable domain.
     public let domainGroups: [DomainGroup]
 
@@ -147,6 +156,24 @@ public struct AuditCoordinator: Sendable {
         var weak: Set<UUID> = []
         for c in credentials where PasswordStrength.isWeak(c.password) { weak.insert(c.id) }
 
+        // Cross-ecosystem duplicates: the same (site, username) account saved in
+        // both an Apple store and a non-Apple store. These don't sync to each
+        // other, so a fix in one place won't reach the other (notably on iOS).
+        var crossEcosystem: Set<UUID> = []
+        for (_, group) in Dictionary(grouping: credentials, by: { "\($0.registrableDomain)|\($0.username)" }) {
+            let hasApple = group.contains { $0.source.isApple }
+            let hasNonApple = group.contains { !$0.source.isApple }
+            if hasApple && hasNonApple { crossEcosystem.formUnion(group.map(\.id)) }
+        }
+
+        // Stray blank-username entries: a login with no username on a site that
+        // also has a real (named) login — likely a leftover save to delete.
+        var strayBlank: Set<UUID> = []
+        for (_, group) in Dictionary(grouping: credentials, by: \.registrableDomain) {
+            guard group.contains(where: { !$0.username.isEmpty }) else { continue }
+            for c in group where c.username.isEmpty { strayBlank.insert(c.id) }
+        }
+
         // A credential's issue severity = its finding severity, or 0 if it's only
         // weak (low priority but still flagged), or -1 if clean.
         func severity(of id: UUID) -> Int {
@@ -176,6 +203,8 @@ public struct AuditCoordinator: Sendable {
             reusedAcrossSites: reuse.reusedAcrossSites,
             duplicatedWithinSite: reuse.duplicatedWithinSite,
             weak: weak,
+            crossEcosystemDuplicates: crossEcosystem,
+            strayBlankUsername: strayBlank,
             domainGroups: domainGroups
         )
     }

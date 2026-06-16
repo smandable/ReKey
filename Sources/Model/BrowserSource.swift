@@ -55,6 +55,11 @@ public enum BrowserSource: String, Sendable, CaseIterable, Codable {
         BrowserSource.chromiumFamily.contains(self)
     }
 
+    /// Apple's password store (iCloud Keychain / Passwords app). It doesn't sync
+    /// with browser/Google stores, so an account saved both here and in a browser
+    /// must be updated in both — the split that bites on iPhone/iPad.
+    public var isApple: Bool { self == .applePasswords }
+
     /// Whether the opt-in `rekey-cleanup` tool can delete logins for this source.
     /// Apple Passwords has no third-party delete API; `unknown` can't be targeted.
     public var cleanupSupported: Bool {

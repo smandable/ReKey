@@ -99,6 +99,49 @@ struct AuditEngineTests {
         #expect(phases.withLock { $0 } == [.analyzing, .finalizing])
     }
 
+    // MARK: - Cross-ecosystem duplicates
+
+    @Test("Flags accounts saved in BOTH an Apple and a non-Apple store; nothing else")
+    func crossEcosystemDuplicates() async {
+        func cred(_ source: BrowserSource, _ domain: String, _ user: String) -> ImportedCredential {
+            ImportedCredential(source: source, title: nil, rawURL: "https://\(domain)/",
+                               registrableDomain: domain, username: user,
+                               password: Secret(UUID().uuidString), notes: nil, hasTOTP: false)
+        }
+        let appleChase  = cred(.applePasswords, "chase.com", "me@x.com")   // ┐ same account,
+        let chromeChase = cred(.chrome,         "chase.com", "me@x.com")   // ┘ Apple + browser → flagged
+        let chromeOnly  = cred(.chrome,         "github.com", "me@x.com")  // browser only → not
+        let appleOnly   = cred(.applePasswords, "icloud.com", "me@x.com")  // Apple only → not
+        let arcChase    = cred(.arc,            "chase.com", "other@x.com")// different username → not
+        let ffReddit    = cred(.firefox,        "reddit.com", "u")         // ┐ both non-Apple →
+        let chromeReddit = cred(.chrome,        "reddit.com", "u")         // ┘ not cross-ecosystem
+
+        let coordinator = AuditCoordinator(compromiseChecker: StubChecker(compromised: [], count: 0))
+        let r = await coordinator.audit(credentials: [
+            appleChase, chromeChase, chromeOnly, appleOnly, arcChase, ffReddit, chromeReddit,
+        ])
+
+        #expect(r.crossEcosystemDuplicates == [appleChase.id, chromeChase.id])
+    }
+
+    @Test("Flags a blank-username login only when the site also has a real one")
+    func strayBlankUsername() async {
+        func cred(_ source: BrowserSource, _ domain: String, _ user: String) -> ImportedCredential {
+            ImportedCredential(source: source, title: nil, rawURL: "https://\(domain)/",
+                               registrableDomain: domain, username: user,
+                               password: Secret(UUID().uuidString), notes: nil, hasTOTP: false)
+        }
+        let blankWithReal = cred(.arc,    "bestbuy.com", "")          // stray: real sibling exists
+        let realBestbuy   = cred(.arc,    "bestbuy.com", "me@x.com")
+        let blankAlone    = cred(.chrome, "example.com", "")          // blank but no real sibling → not stray
+        let normal        = cred(.chrome, "github.com", "me@x.com")
+
+        let coordinator = AuditCoordinator(compromiseChecker: StubChecker(compromised: [], count: 0))
+        let r = await coordinator.audit(credentials: [blankWithReal, realBestbuy, blankAlone, normal])
+
+        #expect(r.strayBlankUsername == [blankWithReal.id])
+    }
+
     @Test("12 credentials across 8 registrable domains, alphabetical")
     func grouping() async throws {
         let r = try await report()
