@@ -8,6 +8,8 @@ import PasswordGenerator
 /// change on the site. Nothing here edits a credential or writes to any store.
 struct FixQueueView: View {
     @Bindable var model: AppModel
+    @State private var cleanupConfirm = false
+    @State private var cleanupCopied = false
 
     var body: some View {
         ScrollView {
@@ -25,12 +27,102 @@ struct FixQueueView: View {
                     ForEach(model.fixQueue.items) { item in
                         FixCard(model: model, item: item)
                     }
+                    cleanupSection
                 }
             }
             .padding(20)
             .frame(maxWidth: 760, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// One script that removes the stale old saved logins for every account the
+    /// user has marked done — across all browsers — with Copy / Save / Append so a
+    /// multi-session cleanup can accumulate into a single file.
+    @ViewBuilder
+    private var cleanupSection: some View {
+        let commands = model.fixedCleanupCommands()
+        if !commands.isEmpty {
+            let script = CleanupPlanner.script(commands: commands, confirm: cleanupConfirm)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Cleanup script — remove the old logins you've replaced", systemImage: "trash.slash")
+                        .font(.headline)
+                    Text("One script to delete the stale saved logins for the \(commands.count) account(s) you've marked done, across every browser. Quit those browsers first — rekey-cleanup backs up each store before deleting and won't run while a browser is open.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Toggle("Include `--confirm` — actually delete (otherwise it only previews)", isOn: cleanupConfirmBinding)
+                        .font(.caption)
+                    Text(script)
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                    HStack {
+                        Button { copyCleanup(script) } label: {
+                            Label(cleanupCopied ? "Copied" : "Copy", systemImage: cleanupCopied ? "checkmark" : "doc.on.doc")
+                        }
+                        Button { saveCleanup(script) } label: {
+                            Label("Save as new file…", systemImage: "square.and.arrow.down")
+                        }
+                        .help("Write the whole current script to a new .sh file you name — everything you've fixed this session.")
+                        Button { appendCleanup(commands) } label: {
+                            Label("Add to existing file…", systemImage: "doc.badge.plus")
+                        }
+                        .help("Add these commands to a cleanup script you saved before (skipping any already in it), so fixes from several sessions accumulate in one file.")
+                        Spacer()
+                    }
+                }
+                .padding(6)
+            }
+        }
+    }
+
+    private var cleanupConfirmBinding: Binding<Bool> {
+        Binding(get: { cleanupConfirm }, set: { cleanupConfirm = $0; cleanupCopied = false })
+    }
+
+    private func copyCleanup(_ script: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(script, forType: .string)
+        cleanupCopied = true
+    }
+
+    private func saveCleanup(_ script: String) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "rekey-cleanup.sh"
+        panel.canCreateDirectories = true
+        panel.message = "Save the cleanup script. Review it, then run it in Terminal."
+        if panel.runModal() == .OK, let url = panel.url {
+            try? script.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
+    /// Append the commands to an existing script the user picks, skipping any line
+    /// already present — so re-appending after more fixes doesn't duplicate.
+    private func appendCleanup(_ commands: [String]) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a cleanup script to append these commands to (duplicates are skipped)."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        let existingLines = Set(
+            existing.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+        )
+        let toAdd = commands
+            .map { cleanupConfirm ? $0 + " --confirm" : $0 }
+            .filter { !existingLines.contains($0) }
+        guard !toAdd.isEmpty else { return }
+
+        var out = existing
+        if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
+        out += toAdd.joined(separator: "\n") + "\n"
+        try? out.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private var header: some View {
@@ -223,16 +315,25 @@ private struct FixCard: View {
     private var newPasswordRow: some View {
         HStack(spacing: 4) {
             Text("New").frame(width: 86, alignment: .leading).foregroundStyle(.secondary)
-            Text(revealNew ? item.newPassword.reveal() : item.newPassword.masked())
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.primary)
-                .textSelection(.enabled)
+            if revealNew {
+                // Editable: the user can tweak the generated value (e.g. remove a
+                // character a site won't accept) without regenerating.
+                TextField("New password", text: newPasswordBinding)
+                    .textFieldStyle(.plain)
+                    .font(.system(.body, design: .monospaced))
+                    .disabled(!isEditable)
+            } else {
+                Text(item.newPassword.masked())
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.primary)
+            }
             Spacer()
             iconButton(systemName: "arrow.clockwise", help: "Generate another") {
                 regenerate()
             }
+            .disabled(!isEditable)
             iconButton(systemName: revealNew ? "eye.slash" : "eye",
-                       help: revealNew ? "Hide" : "Reveal new password") {
+                       help: revealNew ? "Hide" : "Reveal/edit new password") {
                 revealNew.toggle()
             }
             copyButton(copied: copiedField == .new,
@@ -241,6 +342,21 @@ private struct FixCard: View {
                 flashCopied(.new)
             }
         }
+    }
+
+    /// Two-way binding to the item's new password for the editable field.
+    private var newPasswordBinding: Binding<String> {
+        Binding(
+            get: { item.newPassword.reveal() },
+            set: { model.fixQueue.setNewPassword(itemID: item.id, to: $0) }
+        )
+    }
+
+    /// Policy/edit controls are live while the fix is still in play (pending or
+    /// opened) — so the user can tweak after approving too, e.g. if the site
+    /// rejected the password — and lock once it's done or skipped.
+    private var isEditable: Bool {
+        item.status == .pending || item.status == .opened
     }
 
     /// A fixed-width borderless icon button, so trailing controls form aligned
@@ -274,13 +390,7 @@ private struct FixCard: View {
 
     private var policyRow: some View {
         HStack(spacing: 12) {
-            Picker("Style", selection: $style) {
-                ForEach(Style.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 280)
-            .onChange(of: style) { _, _ in regenerate() }
+            styleSelector
 
             if style != .passphrase {
                 Stepper("Length \(Int(length))", value: $length, in: 12...64, step: 1)
@@ -292,7 +402,36 @@ private struct FixCard: View {
             Spacer()
         }
         .font(.caption)
-        .disabled(item.status != .pending)
+        .disabled(!isEditable)
+    }
+
+    /// Segmented-style picker built from plain Buttons. A native segmented
+    /// `Picker` was unreliable here (same control-selection quirk as the sidebar
+    /// `List`), so each style is an explicit button that sets the style and
+    /// regenerates.
+    private var styleSelector: some View {
+        HStack(spacing: 0) {
+            ForEach(Style.allCases) { option in
+                Button {
+                    style = option
+                    regenerate()
+                } label: {
+                    Text(option.rawValue)
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .foregroundStyle(style == option ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                        .background(style == option ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(width: 300)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
     }
 
     @ViewBuilder
@@ -302,9 +441,19 @@ private struct FixCard: View {
             Text("Change at").frame(width: 86, alignment: .leading).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 4) {
                 if let url = item.changeURL {
-                    Text(url.absoluteString)
-                        .font(.caption).foregroundStyle(.blue).lineLimit(2)
-                        .textSelection(.enabled)
+                    // Clickable so the page can be re-opened any time (e.g. after
+                    // closing the tab), in the user's chosen browser.
+                    Button {
+                        model.fixQueue.openChangePage(itemID: item.id)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.right.square")
+                            Text(url.absoluteString).lineLimit(2).multilineTextAlignment(.leading)
+                        }
+                        .font(.caption).foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open this change page in your chosen browser")
                 } else {
                     Text("Will open the site root.").font(.caption).foregroundStyle(.orange)
                 }

@@ -138,7 +138,7 @@ struct CleanupView: View {
                     Label(copied ? "Copied" : "Copy script", systemImage: copied ? "checkmark" : "doc.on.doc")
                 }
                 Button { saveScript(script) } label: {
-                    Label("Save .sh…", systemImage: "square.and.arrow.down")
+                    Label("Save script…", systemImage: "square.and.arrow.down")
                 }
                 Spacer()
                 Text("\(chosen.count) site(s) selected").font(.caption).foregroundStyle(.secondary)

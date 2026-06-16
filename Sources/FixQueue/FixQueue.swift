@@ -130,6 +130,14 @@ public final class FixQueue {
         items[i].newPassword = try generator.generatePassphrase(wordCount: wordCount)
     }
 
+    /// Replace an item's new password with a user-edited value — the preview field
+    /// is editable so the user can tweak it (e.g. drop a character a site rejects)
+    /// without regenerating from scratch.
+    public func setNewPassword(itemID: UUID, to value: String) {
+        guard let i = index(of: itemID) else { return }
+        items[i].newPassword = Secret(value)
+    }
+
     /// Whether the change URL was confidently resolved (well-known or fallback)
     /// vs. a site-root fallback the user must navigate themselves.
     public func isChangeURLConfident(_ itemID: UUID) -> Bool {
@@ -160,6 +168,14 @@ public final class FixQueue {
     public func copySecret(_ secret: Secret) {
         clipboard.copy(secret)
         scheduleClipboardClear(matchingHash: secret.sha256())
+    }
+
+    /// Open (or re-open) an item's change page in the chosen browser, without
+    /// touching its status or the clipboard — for the clickable link, so a closed
+    /// tab can be brought back any time.
+    public func openChangePage(itemID: UUID) {
+        guard let i = index(of: itemID), let url = items[i].changeURL else { return }
+        opener.open(url)
     }
 
     /// User confirms they changed the password on the site (the browser saved

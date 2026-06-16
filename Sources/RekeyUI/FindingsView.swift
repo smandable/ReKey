@@ -9,6 +9,10 @@ struct FindingsView: View {
     @Bindable var model: AppModel
     @State private var onlyIssues = true
     @State private var sortByPriority = true
+    @State private var showIgnored = false
+    /// Passwords are shown by default in the audit list; this persisted setting
+    /// hides them for shoulder-surfing situations.
+    @AppStorage("rekey.hidePasswordsInFindings") private var hidePasswords = false
 
     var body: some View {
         Group {
@@ -26,7 +30,10 @@ struct FindingsView: View {
 
     private func content(_ report: AuditReport) -> some View {
         let base = sortByPriority ? report.prioritizedDomainGroups : report.domainGroups
-        let groups = onlyIssues ? base.filter(\.hasFinding) : base
+        let groups = base.filter { group in
+            guard onlyIssues else { return true }
+            return hasActiveIssue(group, report) || (showIgnored && hasIgnoredIssue(group, report))
+        }
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 summary(report)
@@ -53,10 +60,12 @@ struct FindingsView: View {
 
     private func summary(_ report: AuditReport) -> some View {
         let progress = model.fixProgress
+        let ignored = ignoredCount(report)
         return HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Findings").font(.largeTitle.bold())
-                Text("\(report.findingsByCredential.count) reused/compromised · \(report.weak.count) weak · across \(report.flaggedDomainGroups.count) sites.")
+                Text("\(report.findingsByCredential.count) reused/compromised · \(report.weak.count) weak · across \(report.flaggedDomainGroups.count) sites"
+                     + (ignored > 0 ? " · \(ignored) ignored" : "") + ".")
                     .foregroundStyle(.secondary)
                 if progress.total > 0 {
                     HStack(spacing: 8) {
@@ -77,6 +86,10 @@ struct FindingsView: View {
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 150)
                 Toggle("Only issues", isOn: $onlyIssues).toggleStyle(.switch)
+                Toggle("Hide passwords", isOn: $hidePasswords).toggleStyle(.switch)
+                if ignored > 0 {
+                    Toggle("Show ignored", isOn: $showIgnored).toggleStyle(.switch)
+                }
                 Button { Task { await model.enqueueAllFlagged() } } label: {
                     Label("Fix all", systemImage: "checkmark.shield")
                 }
@@ -86,26 +99,68 @@ struct FindingsView: View {
     }
 
     private func domainSection(_ group: DomainGroup, report: AuditReport) -> some View {
-        GroupBox {
+        // Hide ignored accounts unless the user is reviewing them.
+        let creds = group.credentials.filter { showIgnored || !model.isIgnored($0) }
+        return GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 Text(group.registrableDomain).font(.title3.weight(.semibold))
-                ForEach(group.credentials) { cred in
-                    credentialRow(cred, report: report)
-                    if cred.id != group.credentials.last?.id { Divider() }
+                ForEach(creds) { cred in
+                    CredentialRow(model: model, cred: cred, report: report, revealPassword: !hidePasswords)
+                    if cred.id != creds.last?.id { Divider() }
                 }
             }
             .padding(8)
         }
     }
 
-    private func credentialRow(_ cred: ImportedCredential, report: AuditReport) -> some View {
+    private func isFlagged(_ cred: ImportedCredential, _ report: AuditReport) -> Bool {
+        report.findingsByCredential[cred.id] != nil || report.weak.contains(cred.id)
+    }
+    /// A domain still has an *active* (non-ignored) finding.
+    private func hasActiveIssue(_ group: DomainGroup, _ report: AuditReport) -> Bool {
+        group.credentials.contains { isFlagged($0, report) && !model.isIgnored($0) }
+    }
+    /// A domain has a finding the user has ignored (for the "Show ignored" view).
+    private func hasIgnoredIssue(_ group: DomainGroup, _ report: AuditReport) -> Bool {
+        group.credentials.contains { isFlagged($0, report) && model.isIgnored($0) }
+    }
+    /// Distinct ignored accounts among flagged credentials.
+    private func ignoredCount(_ report: AuditReport) -> Int {
+        var keys = Set<String>()
+        for cred in model.allCredentials where isFlagged(cred, report) && model.isIgnored(cred) {
+            keys.insert(AppModel.progressKey(for: cred))
+        }
+        return keys.count
+    }
+
+}
+
+/// One credential within a domain group: labeled username + password (so you can
+/// see what's actually being reused), the source, any finding badges, and the
+/// fix control.
+private struct CredentialRow: View {
+    @Bindable var model: AppModel
+    let cred: ImportedCredential
+    let report: AuditReport
+    /// Driven by the list-wide "Hide passwords" setting.
+    let revealPassword: Bool
+
+    var body: some View {
         let finding = report.findingsByCredential[cred.id]
         let isWeak = report.weak.contains(cred.id)
         let hasIssue = finding != nil || isWeak
+        let ignored = model.isIgnored(cred)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(cred.username.isEmpty ? "(no username)" : cred.username).font(.body.weight(.medium))
+                    fieldLine("Username:", value: cred.username.isEmpty ? "(none)" : cred.username)
+                    HStack(spacing: 4) {
+                        Text("Password:").foregroundStyle(.secondary)
+                        Text(revealPassword ? cred.password.reveal() : cred.password.masked())
+                            .font(.system(.callout, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                    .font(.callout)
                     Text(cred.rawURL).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
@@ -118,29 +173,48 @@ struct FindingsView: View {
 
             if hasIssue {
                 HStack(spacing: 6) {
-                    if let finding {
-                        FindingBadge(kind: finding.kind, breachCount: finding.breachCount)
+                    if ignored {
+                        PillBadge(icon: "bell.slash.fill", text: "Ignored", color: .gray)
+                        Spacer()
+                        Button("Un-ignore") { model.unignoreFinding(for: cred) }
+                            .controlSize(.small)
+                    } else {
+                        if let finding {
+                            FindingBadge(kind: finding.kind, breachCount: finding.breachCount)
+                        }
+                        if isWeak {
+                            PillBadge(icon: "exclamationmark.shield.fill", text: "Weak", color: .yellow)
+                        }
+                        Spacer()
+                        fixControl
+                        Button("Ignore") { model.ignoreFinding(for: cred) }
+                            .controlSize(.small)
+                            .help("Hide this finding — you've reviewed and accepted it. Bring it back with 'Show ignored'.")
                     }
-                    if isWeak {
-                        PillBadge(icon: "exclamationmark.shield.fill", text: "Weak", color: .yellow)
-                    }
-                    Spacer()
-                    fixControl(for: cred)
                 }
-                if let cluster = report.cluster(for: cred.id), cluster.isAcrossSites {
+                if !ignored, let cluster = report.cluster(for: cred.id), cluster.isAcrossSites {
                     let others = cluster.registrableDomains.filter { $0 != cred.registrableDomain }
                     if !others.isEmpty {
-                        Text("Shared with: \(others.joined(separator: ", "))")
+                        Text("Same password as: \(others.joined(separator: ", "))")
                             .font(.caption).foregroundStyle(.orange)
                     }
                 }
             }
         }
+        .opacity(ignored ? 0.65 : 1)
         .padding(.vertical, 2)
     }
 
+    private func fieldLine(_ label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(label).foregroundStyle(.secondary)
+            Text(value).fontWeight(.medium).textSelection(.enabled)
+        }
+        .font(.callout)
+    }
+
     @ViewBuilder
-    private func fixControl(for cred: ImportedCredential) -> some View {
+    private var fixControl: some View {
         if model.isFixed(cred) {
             Label("Fixed", systemImage: "checkmark.circle.fill")
                 .font(.caption2.weight(.medium)).foregroundStyle(.green)

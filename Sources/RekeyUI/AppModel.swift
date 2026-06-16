@@ -105,8 +105,13 @@ public final class AppModel {
     // MARK: Fix progress (persisted across launches — site+username keys only, NO passwords)
     public private(set) var completedKeys: Set<String> = []
     public private(set) var skippedKeys: Set<String> = []
+    /// Findings the user has reviewed and chosen to ignore (accepted risk). Keyed
+    /// by site+username like the others — no passwords. Ignored findings drop out
+    /// of the active list and don't count toward fix progress.
+    public private(set) var ignoredKeys: Set<String> = []
     private let completedDefaultsKey = "rekey.completedKeys"
     private let skippedDefaultsKey = "rekey.skippedKeys"
+    private let ignoredDefaultsKey = "rekey.ignoredKeys"
 
     /// Browser-independent identity for "this account is fixed" — changing the
     /// password on the site resolves it regardless of which browser saved it.
@@ -117,11 +122,30 @@ public final class AppModel {
         completedKeys.contains(Self.progressKey(for: credential))
     }
 
-    /// (fixed, total) over flagged credentials, deduped by site+username.
+    /// Whether the user has ignored this account's finding.
+    public func isIgnored(_ credential: ImportedCredential) -> Bool {
+        ignoredKeys.contains(Self.progressKey(for: credential))
+    }
+
+    /// Ignore an account's finding (accepted risk). Reversible via `unignoreFinding`.
+    public func ignoreFinding(for credential: ImportedCredential) {
+        ignoredKeys.insert(Self.progressKey(for: credential))
+        saveProgress()
+    }
+
+    /// Un-ignore: bring the finding back into the active list.
+    public func unignoreFinding(for credential: ImportedCredential) {
+        ignoredKeys.remove(Self.progressKey(for: credential))
+        saveProgress()
+    }
+
+    /// (fixed, total) over flagged credentials, deduped by site+username. Ignored
+    /// findings are excluded from both counts — they're not part of the work.
     public var fixProgress: (done: Int, total: Int) {
         guard let report else { return (0, 0) }
         var flagged = Set<String>()
-        for cred in allCredentials where report.findingsByCredential[cred.id] != nil || report.weak.contains(cred.id) {
+        for cred in allCredentials
+        where (report.findingsByCredential[cred.id] != nil || report.weak.contains(cred.id)) && !isIgnored(cred) {
             flagged.insert(Self.progressKey(for: cred))
         }
         return (flagged.intersection(completedKeys).count, flagged.count)
@@ -190,11 +214,13 @@ public final class AppModel {
     private func saveProgress() {
         UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
         UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)
+        UserDefaults.standard.set(Array(ignoredKeys), forKey: ignoredDefaultsKey)
     }
 
     private func loadProgress() {
         completedKeys = Set(UserDefaults.standard.stringArray(forKey: completedDefaultsKey) ?? [])
         skippedKeys = Set(UserDefaults.standard.stringArray(forKey: skippedDefaultsKey) ?? [])
+        ignoredKeys = Set(UserDefaults.standard.stringArray(forKey: ignoredDefaultsKey) ?? [])
     }
 
     // MARK: - Change-page browser
@@ -462,6 +488,40 @@ public final class AppModel {
 
     public func enqueueFix(for credential: ImportedCredential) async {
         _ = try? await fixQueue.enqueue(credential: credential)
+    }
+
+    // MARK: - Aggregated cleanup script (across all fixed logins)
+
+    /// One deduped `rekey-cleanup delete` command per login the user has marked
+    /// **done** in the fix queue, across every browser — the basis for a single
+    /// script that removes all the stale old saved logins at once.
+    ///
+    /// Sources the tool can't clean (e.g. Apple Passwords) are skipped. Firefox
+    /// commands are site-level because its usernames are encrypted, so several
+    /// fixed Firefox logins on one site collapse to a single command.
+    public func fixedCleanupCommands() -> [String] {
+        Self.cleanupCommands(forDone: fixQueue.items) { credential($0)?.source ?? .unknown }
+    }
+
+    /// Pure core of `fixedCleanupCommands()` (testable without the fix queue's
+    /// networked enqueue): deduped cleanup commands for the done items, given a
+    /// credential-id → browser-source lookup. Order follows the items.
+    static func cleanupCommands(forDone items: [FixItem], source: (UUID) -> BrowserSource) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for item in items where item.status == .done {
+            guard let cmd = StaleLoginGuidance.cliCommand(
+                for: source(item.credentialID), domain: item.registrableDomain, username: item.username
+            ) else { continue }
+            if seen.insert(cmd).inserted { out.append(cmd) }
+        }
+        return out
+    }
+
+    /// The full cleanup script for every fixed login, or "" when nothing fixed is
+    /// cleanable. `confirm` adds `--confirm` (otherwise it only previews).
+    public func fixedCleanupScript(confirm: Bool) -> String {
+        CleanupPlanner.script(commands: fixedCleanupCommands(), confirm: confirm)
     }
 
     public func enqueueAllFlagged() async {

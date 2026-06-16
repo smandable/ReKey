@@ -205,6 +205,24 @@ struct FixQueueTests {
         #expect(pasteboard.value == "something the user copied")
     }
 
+    @Test("Editing the new password replaces it with the typed value")
+    func setNewPassword() async throws {
+        let (queue, _, _) = try makeQueue()
+        let id = try #require(try await queue.enqueue(credential: credential()))
+        queue.setNewPassword(itemID: id, to: "Custom-Pw-123")
+        #expect(queue.items.first?.newPassword.reveal() == "Custom-Pw-123")
+    }
+
+    @Test("openChangePage re-opens the URL without changing status or the clipboard")
+    func openChangePage() async throws {
+        let (queue, pasteboard, opener) = try makeQueue()
+        let id = try #require(try await queue.enqueue(credential: credential()))
+        queue.openChangePage(itemID: id)
+        #expect(opener.opened == [URL(string: "https://acme.example/.well-known/change-password")!])
+        #expect(queue.items.first?.status == .pending)   // status untouched
+        #expect(pasteboard.value == nil)                 // nothing copied
+    }
+
     @Test("copySecret puts the plaintext on the clipboard without opening anything")
     func copySecretWritesValue() async throws {
         let (queue, pasteboard, opener) = try makeQueue()
