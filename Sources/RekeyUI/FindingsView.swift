@@ -119,6 +119,7 @@ struct FindingsView: View {
             || report.weak.contains(cred.id)
             || report.crossEcosystemDuplicates.contains(cred.id)
             || report.strayBlankUsername.contains(cred.id)
+            || cred.username.isEmpty   // blank-username (stray or "no username") — surface for review
     }
     /// Distinct accounts saved in both an Apple and a non-Apple store.
     private func crossEcosystemAccounts(_ report: AuditReport) -> Int {
@@ -162,6 +163,9 @@ private struct CredentialRow: View {
         let isWeak = report.weak.contains(cred.id)
         let isCrossEcosystem = report.crossEcosystemDuplicates.contains(cred.id)
         let isStray = report.strayBlankUsername.contains(cred.id)
+        // Blank username but the ONLY login for its site (not a stray): a real
+        // login saved without a name (reset/sign-up page) — review, don't delete.
+        let isNoUsername = cred.username.isEmpty && !isStray
         let hasSecurityIssue = finding != nil || isWeak
         let ignored = model.isIgnored(cred)
         return VStack(alignment: .leading, spacing: 6) {
@@ -185,9 +189,9 @@ private struct CredentialRow: View {
                 }
             }
 
-            if hasSecurityIssue || isCrossEcosystem || isStray {
+            if hasSecurityIssue || isCrossEcosystem || isStray || isNoUsername {
                 HStack(spacing: 6) {
-                    if ignored && (hasSecurityIssue || isStray) {
+                    if ignored && (hasSecurityIssue || isStray || isNoUsername) {
                         PillBadge(icon: "bell.slash.fill", text: "Ignored", color: .gray)
                         Spacer()
                         Button("Un-ignore") { model.unignoreFinding(for: cred) }
@@ -207,6 +211,9 @@ private struct CredentialRow: View {
                         if isStray {
                             PillBadge(icon: "person.crop.circle.badge.questionmark", text: "Likely stray", color: .gray)
                         }
+                        if isNoUsername {
+                            PillBadge(icon: "person.crop.circle", text: "No username", color: .gray)
+                        }
                         Spacer()
                         if isStray {
                             // No "Fix this" — there's no account behind a blank
@@ -219,10 +226,14 @@ private struct CredentialRow: View {
                             Button("Ignore") { model.ignoreFinding(for: cred) }
                                 .controlSize(.small)
                                 .help("Hide this finding — you've reviewed and accepted it. Bring it back with 'Show ignored'.")
+                        } else if isNoUsername {
+                            Button("Ignore") { model.ignoreFinding(for: cred) }
+                                .controlSize(.small)
+                                .help("Hide this once you've reviewed it.")
                         }
                     }
                 }
-                if !(ignored && (hasSecurityIssue || isStray)) {
+                if !(ignored && (hasSecurityIssue || isStray || isNoUsername)) {
                     if isCrossEcosystem {
                         Text("Saved in both Apple Passwords and a browser — these don't sync, so update both or your iPhone may keep autofilling the old password.")
                             .font(.caption).foregroundStyle(.orange)
@@ -240,6 +251,11 @@ private struct CredentialRow: View {
                         .padding(8)
                         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                     }
+                    if isNoUsername {
+                        Text("Saved without a username — likely captured on a reset or sign-up page. It's probably a real login (deleting would lose the password); just confirm the account before changing it.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if hasSecurityIssue, let cluster = report.cluster(for: cred.id), cluster.isAcrossSites {
                         let others = cluster.registrableDomains.filter { $0 != cred.registrableDomain }
                         if !others.isEmpty {
@@ -250,7 +266,7 @@ private struct CredentialRow: View {
                 }
             }
         }
-        .opacity(ignored && (hasSecurityIssue || isStray) ? 0.65 : 1)
+        .opacity(ignored && (hasSecurityIssue || isStray || isNoUsername) ? 0.65 : 1)
         .padding(.vertical, 2)
     }
 
