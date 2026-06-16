@@ -78,6 +78,9 @@ public struct DeleteOutcome: Sendable, Equatable {
 public enum LoginStoreError: Error, CustomStringConvertible, Equatable {
     case fileNotFound(URL)
     case unrecognizedSchema(String)
+    /// The store is locked — almost always because its browser is still running
+    /// and holding the database open. Carries the browser so the message can name it.
+    case locked(BrowserSource)
     case backupFailed(String)
     case sqlite(String)
     case io(String)
@@ -88,6 +91,9 @@ public enum LoginStoreError: Error, CustomStringConvertible, Equatable {
         switch self {
         case .fileNotFound(let url): return "Store not found at \(url.path). Pass --path to point at it directly."
         case .unrecognizedSchema(let why): return "Unrecognized store schema: \(why). Refusing to touch it."
+        case .locked(let browser):
+            return "\(browser.displayName)'s store is locked — it's almost certainly still running. "
+                + "Quit \(browser.displayName) completely (⌘Q), then re-run."
         case .backupFailed(let why): return "Backup failed (\(why)); nothing was deleted."
         case .sqlite(let msg): return "SQLite error: \(msg)"
         case .io(let msg): return "I/O error: \(msg)"

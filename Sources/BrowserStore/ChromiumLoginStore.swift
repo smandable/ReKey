@@ -19,14 +19,14 @@ public struct ChromiumLoginStore: LoginStore {
         try requireFile()
         let db = try open(readOnly: true)
         defer { sqlite3_close(db) }
-        try requireColumns(tableColumns(db, table: "logins"))
+        try requireColumns(try tableColumns(db, table: "logins"))
     }
 
     public func list(matching filter: LoginFilter) throws -> [StoredLogin] {
         try requireFile()
         let db = try open(readOnly: true)
         defer { sqlite3_close(db) }
-        let columns = tableColumns(db, table: "logins")
+        let columns = try tableColumns(db, table: "logins")
         try requireColumns(columns)
         return try queryLogins(db, columns: columns).filter(filter.matches)
     }
@@ -100,17 +100,39 @@ public struct ChromiumLoginStore: LoginStore {
         return handle
     }
 
-    private func tableColumns(_ db: OpaquePointer, table: String) -> Set<String> {
+    /// Column names of `table`. Empty set means the table genuinely doesn't exist
+    /// (PRAGMA prepares fine and returns no rows). A prepare/step *failure* — the
+    /// usual one being a lock held by a still-running browser — is thrown as a
+    /// distinct error rather than swallowed into "no such table".
+    private func tableColumns(_ db: OpaquePointer, table: String) throws -> Set<String> {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, "PRAGMA table_info(\(table))", -1, &stmt, nil) == SQLITE_OK else {
-            return []
+            throw storeError(db)
         }
         defer { sqlite3_finalize(stmt) }
         var columns: Set<String> = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let c = sqlite3_column_text(stmt, 1) { columns.insert(String(cString: c)) }
+        while true {
+            switch sqlite3_step(stmt) {
+            case SQLITE_ROW:
+                if let c = sqlite3_column_text(stmt, 1) { columns.insert(String(cString: c)) }
+            case SQLITE_DONE:
+                return columns
+            default:
+                throw storeError(db)
+            }
         }
-        return columns
+    }
+
+    /// Translate the connection's current error into a `LoginStoreError`. A
+    /// BUSY/LOCKED code almost always means the browser is still open and holding
+    /// the store, so surface that plainly instead of a cryptic schema message.
+    private func storeError(_ db: OpaquePointer) -> LoginStoreError {
+        switch sqlite3_errcode(db) & 0xFF {
+        case SQLITE_BUSY, SQLITE_LOCKED:
+            return .locked(browser)
+        default:
+            return .sqlite(lastError(db))
+        }
     }
 
     private func requireColumns(_ columns: Set<String>) throws {
@@ -127,7 +149,7 @@ public struct ChromiumLoginStore: LoginStore {
 
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw LoginStoreError.sqlite(lastError(db))
+            throw storeError(db)
         }
         defer { sqlite3_finalize(stmt) }
 

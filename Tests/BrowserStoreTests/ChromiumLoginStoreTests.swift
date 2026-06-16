@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SQLite3
 import Model
 @testable import BrowserStore
 
@@ -26,6 +27,27 @@ struct ChromiumLoginStoreTests {
 
         let (bad, _) = makeStore(sampleRows, includeRealm: false)
         #expect(throws: LoginStoreError.self) { try bad.validate() }
+    }
+
+    @Test("A locked store reports .locked (browser running), not a schema error")
+    func lockedStoreReportsLocked() throws {
+        let (store, dir) = makeStore(sampleRows)
+        let dbURL = dir.appendingPathComponent("Login Data")
+
+        // Mimic the browser holding its store open: take an EXCLUSIVE lock on a
+        // separate connection so the store's read-only connection can't acquire a
+        // shared lock. The store must surface this as .locked ("quit the browser"),
+        // NOT swallow the lock into "no 'logins' table".
+        var locker: OpaquePointer?
+        #expect(sqlite3_open(dbURL.path, &locker) == SQLITE_OK)
+        defer { sqlite3_close(locker) }
+        #expect(sqlite3_exec(locker, "BEGIN EXCLUSIVE", nil, nil, nil) == SQLITE_OK)
+
+        // (One assertion only: each locked call waits out the store's 2s SQLite
+        // busy-timeout, and validate()/list() share the same tableColumns gate.)
+        #expect(throws: LoginStoreError.locked(.chrome)) { try store.validate() }
+
+        sqlite3_exec(locker, "COMMIT", nil, nil, nil)
     }
 
     @Test("List returns rows and honors filters")
