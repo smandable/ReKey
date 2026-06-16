@@ -9,6 +9,7 @@ enum Prefs {
     static let defaultPwStyle = "rekey.defaultPwStyle"      // one of the style* values below
     static let defaultPwLength = "rekey.defaultPwLength"
     static let avoidLookAlikes = "rekey.avoidLookAlikes"
+    static let keepOnTop = "rekey.keepOnTop"
 
     // Style values (also the raw values of FixCard.Style, so they round-trip).
     static let styleStrong = "Strong"
@@ -20,6 +21,12 @@ enum Prefs {
     /// Whether passwords are revealed by default (true when unset).
     static func showPasswordsValue(_ d: UserDefaults = .standard) -> Bool {
         d.object(forKey: showPasswords) as? Bool ?? true
+    }
+
+    /// Whether Rekey's window floats above other windows (true when unset), so the
+    /// browser change page it opens doesn't bury it.
+    static func keepOnTopValue(_ d: UserDefaults = .standard) -> Bool {
+        d.object(forKey: keepOnTop) as? Bool ?? true
     }
 
     /// The current new-password generation defaults, with fallbacks. "No

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.defaultPwStyle) private var defaultPwStyle = Prefs.styleStrong
     @AppStorage(Prefs.defaultPwLength) private var defaultPwLength = Prefs.defaultLength
     @AppStorage(Prefs.avoidLookAlikes) private var avoidLookAlikes = false
+    @AppStorage(Prefs.keepOnTop) private var keepOnTop = true
 
     private let styles = [Prefs.styleStrong, Prefs.styleLettersDigits, Prefs.stylePassphrase]
 
@@ -24,6 +25,16 @@ struct SettingsView: View {
                     }
                     .padding(8).frame(maxWidth: .infinity, alignment: .leading)
                 } label: { Label("Display", systemImage: "eye") }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Keep Rekey above other windows", isOn: $keepOnTop)
+                        Text("Rekey floats on top so the browser change page it opens doesn't bury it — park Rekey in a corner and the browser opens behind it. Rekey is sandboxed, so it can't move the browser's window onto another monitor; floating is the reliable way to keep it from being covered. Turn off to behave like a normal window.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                } label: { Label("Window", systemImage: "macwindow.on.rectangle") }
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {

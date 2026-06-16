@@ -4,6 +4,7 @@ import SwiftUI
 /// and a detail pane that swaps with the selected section.
 public struct RootView: View {
     @State private var model = AppModel()
+    @AppStorage(Prefs.keepOnTop) private var keepOnTop = true
 
     public init() {}
 
@@ -29,6 +30,8 @@ public struct RootView: View {
         } detail: {
             detail
         }
+        // Float above the browser change page Rekey opens, so it isn't buried.
+        .background(WindowLevelModifier(keepOnTop: keepOnTop))
     }
 
     @ViewBuilder
