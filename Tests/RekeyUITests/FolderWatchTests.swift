@@ -13,6 +13,25 @@ private func tempDir() -> URL {
 struct FolderWatcherTests {
     /// Reference box so the escaping onChange closure can flip a flag the test reads.
     final class Flag { var value = false }
+    /// Reference box for counting onChange calls.
+    final class Counter { var value = 0 }
+
+    @Test("Polls on an interval even with no filesystem events (external/network-volume fallback)")
+    func pollsWithoutFilesystemEvents() async throws {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let watcher = FolderWatcher(pollInterval: 0.05)
+        let counter = Counter()
+        watcher.onChange = { counter.value += 1 }
+        watcher.start(url: dir)
+        // No file changes occur, so any onChange must come from the poll timer —
+        // this is exactly the path that rescues external/network-volume folders
+        // where kqueue/vnode events are never delivered.
+        try await Task.sleep(for: .milliseconds(300))
+        watcher.stop()
+        #expect(counter.value >= 2)
+    }
 
     @Test("Fires onChange on a directory change; start/stop are idempotent")
     func firesAndTearsDown() async throws {
