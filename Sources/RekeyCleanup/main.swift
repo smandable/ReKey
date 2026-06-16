@@ -105,10 +105,25 @@ func run() -> Int32 {
                 return 0
             }
 
+            // A lone match by site/username (no --id) can't be told apart from the
+            // user's current login — the browser may have updated it in place
+            // rather than leaving a stale duplicate. Caution on preview; refuse on
+            // --confirm unless they re-target it precisely by id.
+            let loneBroadMatch = CleanupHint.isLoneBroadMatch(matchCount: matches.count, filter: filter)
+
             if !flag("confirm") {
                 print("\nDRY RUN: \(matches.count) login(s) would be deleted.")
-                print("Re-run with --confirm to delete them (the browser must be quit first).")
+                if loneBroadMatch {
+                    print("\n" + CleanupHint.loneMatchCaution(login: matches[0], filter: filter, browser: browser))
+                }
+                print("\nRe-run with --confirm to delete them (the browser must be quit first).")
                 return 0
+            }
+
+            if loneBroadMatch {
+                printErr("\n" + CleanupHint.loneMatchCaution(login: matches[0], filter: filter, browser: browser))
+                printErr("\nRefusing to delete a lone site/username match with --confirm. Re-run with the --id form above once you've confirmed it's the old entry.")
+                return 2
             }
 
             // Real delete: guardrails.

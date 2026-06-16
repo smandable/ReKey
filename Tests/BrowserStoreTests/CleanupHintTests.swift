@@ -40,4 +40,29 @@ struct CleanupHintTests {
         #expect(CleanupHint.unmatchedFilter(
             filter: LoginFilter(site: "nope.com", username: "x@y.com"), browser: .chrome, siteMatchCount: 0) == nil)
     }
+
+    // MARK: - Lone-match guard
+
+    @Test("A single match without --id is a lone broad match (guard applies)")
+    func loneBroadMatchDetection() {
+        let siteFilter = LoginFilter(site: "fcpeuro.com")
+        #expect(CleanupHint.isLoneBroadMatch(matchCount: 1, filter: siteFilter))
+        // Pinned by --id → the user identified the exact row, so not guarded.
+        #expect(!CleanupHint.isLoneBroadMatch(matchCount: 1, filter: LoginFilter(site: "fcpeuro.com", identifiers: ["212"])))
+        // More than one match, or none, isn't the lone-match case.
+        #expect(!CleanupHint.isLoneBroadMatch(matchCount: 2, filter: siteFilter))
+        #expect(!CleanupHint.isLoneBroadMatch(matchCount: 0, filter: siteFilter))
+    }
+
+    @Test("Lone-match caution warns it may be the current login and gives the --id command")
+    func loneMatchCautionText() {
+        let login = StoredLogin(id: "212", browser: .arc, origin: "https://identity.fcpeuro.com/",
+                                signonRealm: nil, username: "", usernameIsEncrypted: false,
+                                createdAt: nil, lastUsedAt: nil)
+        let filter = LoginFilter(site: "fcpeuro.com")
+        let text = CleanupHint.loneMatchCaution(login: login, filter: filter, browser: .arc)
+        #expect(text.contains("CURRENT"))                 // names the risk
+        #expect(text.contains("Only 1 login matches"))
+        #expect(text.contains("--browser arc --site fcpeuro.com --id 212 --confirm"))  // exact re-target
+    }
 }
