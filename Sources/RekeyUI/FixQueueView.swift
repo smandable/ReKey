@@ -10,35 +10,51 @@ struct FixQueueView: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        Group {
-            if model.fixQueue.items.isEmpty {
-                ContentUnavailableView(
-                    "Fix queue is empty",
-                    systemImage: "checkmark.shield",
-                    description: Text("Add flagged credentials from the Findings tab to queue them for fixing.")
-                )
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        header
-                        ForEach(model.fixQueue.items) { item in
-                            FixCard(model: model, item: item)
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                header
+                if model.fixQueue.items.isEmpty {
+                    ContentUnavailableView(
+                        "Fix queue is empty",
+                        systemImage: "checkmark.shield",
+                        description: Text("Add flagged credentials from the Findings tab to queue them for fixing.")
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 40)
+                } else {
+                    ForEach(model.fixQueue.items) { item in
+                        FixCard(model: model, item: item)
                     }
-                    .padding(20)
-                    .frame(maxWidth: 760, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity)
             }
+            .padding(20)
+            .frame(maxWidth: 760, alignment: .leading)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Fix queue").font(.largeTitle.bold())
             Text("Review each change, then Approve. Rekey copies the new password and opens the site's change page — you make the change there, and your browser offers to save it. Rekey never changes a password for you.")
                 .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Image(systemName: "safari")
+                Text("Open change pages in:")
+                Picker("Open change pages in", selection: browserSelection) {
+                    ForEach(model.availableBrowsers) { Text($0.name).tag($0.id) }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 220)
+                .help("Choose which browser Rekey opens change-password pages in. 'Default browser' follows your macOS setting.")
+            }
+            .font(.callout)
+            .padding(.top, 2)
         }
+    }
+
+    private var browserSelection: Binding<String> {
+        Binding(get: { model.selectedBrowserID }, set: { model.selectBrowser(id: $0) })
     }
 }
 

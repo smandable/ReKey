@@ -157,12 +157,13 @@ flow:
 1. **Audit everything.** Export a CSV from *each* browser you've used and import
    them all (tag Chromium files with the right browser in the dropdown). Rekey
    merges them, so reuse across browsers is caught.
-2. **Fix into your new primary.** Set your macOS default browser to the one you
-   want to keep — **System Settings → Desktop & Dock → Default web browser**.
-   Every change page opens there and that browser saves the new password, so the
-   default becomes your single, current store. (For an account only ever saved in
-   an old browser, you may need to sign in once in the new one to reach its change
-   page.)
+2. **Fix into your new primary.** Choose where change pages open with the
+   **"Open change pages in:"** picker at the top of the Fix Queue (Default browser,
+   Arc, Chrome, …) — no need to change your system default unless you want to.
+   That browser is where you change the password and where its save prompt stores
+   the new one, so it becomes your single, current store. (For an account only
+   ever saved in an old browser, you may need to sign in once in the new one to
+   reach its change page.)
 3. **Clean up the old browsers** — see below.
 
 ### Where/when does the cleanup command run?

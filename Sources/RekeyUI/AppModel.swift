@@ -72,10 +72,31 @@ public final class AppModel {
 
     public let fixQueue: FixQueue
 
+    // MARK: Change-page browser preference
+    /// A browser the user can route change pages to. `appURL == nil` is the
+    /// "system default" option.
+    public struct BrowserChoice: Identifiable, Hashable, Sendable {
+        public let id: String        // "" for default, else the app path
+        public let name: String
+        public let appURL: URL?
+    }
+
+    /// "Default browser" plus every installed browser, for the picker.
+    public let availableBrowsers: [BrowserChoice]
+    /// The currently selected browser's id ("" = system default).
+    public private(set) var selectedBrowserID: String = ""
+
+    private let browserOpener: BrowserOpener
+    private let browserPrefKey = "rekey.changePageBrowserPath"
+
     private let importer = CSVImporter()
     private let hibp = HIBPClient()
 
     public init() {
+        let opener = BrowserOpener()
+        self.browserOpener = opener
+        self.availableBrowsers = Self.discoverBrowsers()
+
         // The diceware wordlist is a bundled resource we ship, so this only
         // fails if the app bundle is corrupt — in which case the generator is
         // unusable regardless. Fail fast rather than limp along.
@@ -84,9 +105,48 @@ public final class AppModel {
             generator: generator,
             router: ResetRouter(),
             clipboard: Clipboard(),
-            opener: WorkspaceURLOpener()
+            opener: opener
         )
+        loadBrowserPreference()
         restoreWatchedFolder()
+    }
+
+    // MARK: - Change-page browser
+
+    private static func discoverBrowsers() -> [BrowserChoice] {
+        var choices = [BrowserChoice(id: "", name: "Default browser", appURL: nil)]
+        if let sample = URL(string: "https://example.com") {
+            let installed = NSWorkspace.shared.urlsForApplications(toOpen: sample)
+                .map { BrowserChoice(id: $0.path, name: $0.deletingPathExtension().lastPathComponent, appURL: $0) }
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            choices.append(contentsOf: installed)
+        }
+        return choices
+    }
+
+    /// Choose which browser change pages open in, persisting the choice. Picking
+    /// a browser that isn't in `availableBrowsers` is ignored.
+    public func selectBrowser(id: String) {
+        guard let choice = availableBrowsers.first(where: { $0.id == id }) else { return }
+        selectedBrowserID = choice.id
+        browserOpener.targetAppURL = choice.appURL
+        if choice.appURL == nil {
+            UserDefaults.standard.removeObject(forKey: browserPrefKey)
+        } else {
+            UserDefaults.standard.set(choice.id, forKey: browserPrefKey)
+        }
+    }
+
+    private func loadBrowserPreference() {
+        let stored = UserDefaults.standard.string(forKey: browserPrefKey) ?? ""
+        // Only honor it if that browser is still installed; otherwise fall back.
+        if !stored.isEmpty, let choice = availableBrowsers.first(where: { $0.id == stored }) {
+            selectedBrowserID = choice.id
+            browserOpener.targetAppURL = choice.appURL
+        } else {
+            selectedBrowserID = ""
+            browserOpener.targetAppURL = nil
+        }
     }
 
     // MARK: - Derived

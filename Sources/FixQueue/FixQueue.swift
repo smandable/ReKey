@@ -14,11 +14,28 @@ public protocol URLOpening: Sendable {
 }
 
 #if canImport(AppKit)
-/// Opens URLs via `NSWorkspace` in the default browser.
-public struct WorkspaceURLOpener: URLOpening {
-    public init() {}
-    @MainActor public func open(_ url: URL) {
-        NSWorkspace.shared.open(url)
+/// Opens URLs via `NSWorkspace`. When `targetAppURL` is nil the system default
+/// browser is used; otherwise the chosen browser app is launched. If the chosen
+/// app can't open the URL (moved/removed), it falls back to the default.
+@MainActor
+public final class BrowserOpener: URLOpening {
+    /// The browser app bundle to open in, or nil for the system default.
+    public var targetAppURL: URL?
+
+    public init(targetAppURL: URL? = nil) {
+        self.targetAppURL = targetAppURL
+    }
+
+    public func open(_ url: URL) {
+        guard let app = targetAppURL else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            if error != nil {
+                Task { @MainActor in NSWorkspace.shared.open(url) }
+            }
+        }
     }
 }
 #endif
