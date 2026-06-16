@@ -88,6 +88,7 @@ func run() -> Int32 {
             print("\(browser.displayName) — \(storeURL.path)")
             printTable(logins)
             print("\n\(logins.count) login(s)\(filter.isEmpty ? "" : " matching filter").")
+            if logins.isEmpty { printUnmatchedHint(store: store, filter: filter, browser: browser) }
             return 0
 
         case "delete":
@@ -100,6 +101,7 @@ func run() -> Int32 {
             printTable(matches)
             if matches.isEmpty {
                 print("\nNo logins match the filter; nothing to delete.")
+                printUnmatchedHint(store: store, filter: filter, browser: browser)
                 return 0
             }
 
@@ -136,6 +138,19 @@ func run() -> Int32 {
 }
 
 // MARK: - Output
+
+/// After an empty exact-filter result, check whether the same site has logins
+/// under a different/blank username or id and print a one-line hint if so — so a
+/// silent miss (e.g. a blank-username entry skipped by `--username`) is visible.
+func printUnmatchedHint(store: LoginStore, filter: LoginFilter, browser: BrowserSource) {
+    // Only worth a second query when the filter was narrower than site-only.
+    guard let site = filter.site, !site.isEmpty,
+          (filter.username?.isEmpty == false) || !filter.identifiers.isEmpty else { return }
+    let siteMatches = (try? store.list(matching: LoginFilter(site: site)))?.count ?? 0
+    if let hint = CleanupHint.unmatchedFilter(filter: filter, browser: browser, siteMatchCount: siteMatches) {
+        print(hint)
+    }
+}
 
 func printTable(_ logins: [StoredLogin]) {
     guard !logins.isEmpty else { return }
