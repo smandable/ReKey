@@ -281,8 +281,13 @@ private struct CredentialRow: View {
     @ViewBuilder
     private var fixControl: some View {
         if model.isFixed(cred) {
-            Label("Fixed", systemImage: "checkmark.circle.fill")
-                .font(.caption2.weight(.medium)).foregroundStyle(.green)
+            HStack(spacing: 8) {
+                Label("Fixed", systemImage: "checkmark.circle.fill")
+                    .font(.caption2.weight(.medium)).foregroundStyle(.green)
+                Button("Reopen") { model.unmarkFixed(for: cred) }
+                    .controlSize(.small)
+                    .help("Not actually fixed? Mark it un-fixed so you can queue and redo it — e.g. the new password never got saved to the browser.")
+            }
         } else if model.fixQueue.items.contains(where: { $0.credentialID == cred.id }) {
             Label("In fix queue", systemImage: "checkmark").font(.caption2).foregroundStyle(.green)
         } else {

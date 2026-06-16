@@ -230,6 +230,15 @@ public final class AppModel {
         saveProgress()
     }
 
+    /// Un-mark a credential as fixed — for when the change didn't actually take
+    /// (e.g. the new password never got saved to the browser). Clears the
+    /// persisted completed key so the finding returns to the active list with an
+    /// "Add to queue" action. Does not touch any saved password.
+    public func unmarkFixed(for credential: ImportedCredential) {
+        completedKeys.remove(Self.progressKey(for: credential))
+        saveProgress()
+    }
+
     private func saveProgress() {
         UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
         UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)

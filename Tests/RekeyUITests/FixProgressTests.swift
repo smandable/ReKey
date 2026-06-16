@@ -41,6 +41,25 @@ struct FixProgressTests {
         #expect(!reloaded.completedKeys.contains { $0.contains("Tr0ub4dour") })  // never stores the password
     }
 
+    @Test("Reopen un-marks a fixed account so it can be redone")
+    func unmarkFixed() throws {
+        clear(); defer { clear() }
+        let model = AppModel()
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")
+        let cred = try #require(model.allCredentials.first)
+
+        model.recordFixDone(item(for: cred))
+        #expect(model.isFixed(cred))
+
+        model.unmarkFixed(for: cred)
+        #expect(!model.isFixed(cred))
+        // And it stays un-fixed across a relaunch.
+        let reloaded = AppModel()
+        reloaded.importData(Data(csv.utf8), displayName: "chrome.csv")
+        let reCred = try #require(reloaded.allCredentials.first)
+        #expect(!reloaded.isFixed(reCred))
+    }
+
     @Test("Skipping records the account without marking it fixed")
     func persistsSkip() throws {
         clear(); defer { clear() }
