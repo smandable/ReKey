@@ -187,7 +187,7 @@ private struct CredentialRow: View {
 
             if hasSecurityIssue || isCrossEcosystem || isStray {
                 HStack(spacing: 6) {
-                    if ignored && hasSecurityIssue {
+                    if ignored && (hasSecurityIssue || isStray) {
                         PillBadge(icon: "bell.slash.fill", text: "Ignored", color: .gray)
                         Spacer()
                         Button("Un-ignore") { model.unignoreFinding(for: cred) }
@@ -208,7 +208,13 @@ private struct CredentialRow: View {
                             PillBadge(icon: "person.crop.circle.badge.questionmark", text: "Likely stray", color: .gray)
                         }
                         Spacer()
-                        if hasSecurityIssue {
+                        if isStray {
+                            // No "Fix this" — there's no account behind a blank
+                            // username; the right action is delete-in-browser.
+                            Button("Ignore") { model.ignoreFinding(for: cred) }
+                                .controlSize(.small)
+                                .help("Delete the entry in your browser first, then Ignore it here.")
+                        } else if hasSecurityIssue {
                             fixControl
                             Button("Ignore") { model.ignoreFinding(for: cred) }
                                 .controlSize(.small)
@@ -216,16 +222,23 @@ private struct CredentialRow: View {
                         }
                     }
                 }
-                if !(ignored && hasSecurityIssue) {
+                if !(ignored && (hasSecurityIssue || isStray)) {
                     if isCrossEcosystem {
                         Text("Saved in both Apple Passwords and a browser — these don't sync, so update both or your iPhone may keep autofilling the old password.")
                             .font(.caption).foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if isStray {
-                        Text("No username, but this site also has a real login — likely a leftover save. Delete it directly in your browser rather than fixing it.")
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Likely a leftover save — there's no account behind a blank username, so **Fixing won't help.** Instead:")
+                            Text("1. \(StaleLoginGuidance.manualSteps(for: cred.source, domain: cred.registrableDomain))")
+                            Text("2. Then click **Ignore** here to clear it.")
+                        }
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                     }
                     if hasSecurityIssue, let cluster = report.cluster(for: cred.id), cluster.isAcrossSites {
                         let others = cluster.registrableDomains.filter { $0 != cred.registrableDomain }
@@ -237,7 +250,7 @@ private struct CredentialRow: View {
                 }
             }
         }
-        .opacity(ignored && hasSecurityIssue ? 0.65 : 1)
+        .opacity(ignored && (hasSecurityIssue || isStray) ? 0.65 : 1)
         .padding(.vertical, 2)
     }
 
