@@ -146,9 +146,10 @@ public final class AppModel {
     /// Old/new password hashes per fixed account (progressKey), so a later import
     /// can verify the change saved. Hashes only — no passwords. Persisted.
     private var fixSaveRecords: [String: FixSaveRecord] = [:]
-    /// User-supplied usernames for blank-username logins (the email often dropped
-    /// from the export), keyed by source|site. Persisted; used only for display,
-    /// the fix flow, and precise cleanup — never the audit/progress identity.
+    /// Usernames the user types for blank-username logins (a recognition label —
+    /// the browser saved the login without a username). Keyed by source|site,
+    /// persisted. DISPLAY ONLY: it never flows into the fix or the cleanup, which
+    /// must match the browser's actual stored (blank) username.
     private var usernameOverrides: [String: String] = [:]
     /// Fixed accounts whose most recent re-import of their source still shows the
     /// OLD password (not the new) — the change likely didn't save. Derived on
@@ -293,9 +294,9 @@ public final class AppModel {
         "\(cred.source.rawValue)|\(cred.site)"
     }
 
-    /// The username to show/use for a credential: its real one, or — for a
-    /// blank-username login — a username the user supplied (the email the export
-    /// dropped). Empty when neither exists.
+    /// The username to SHOW for a credential: its real one, or — for a
+    /// blank-username login — a label the user typed (the email the browser didn't
+    /// save). For display only; the fix/cleanup use the real (blank) username.
     public func effectiveUsername(for cred: ImportedCredential) -> String {
         if !cred.username.isEmpty { return cred.username }
         return usernameOverrides[Self.usernameOverrideKey(for: cred)] ?? ""
@@ -642,8 +643,7 @@ public final class AppModel {
         let g = currentGenerationChoice()
         _ = try? await fixQueue.enqueue(credential: credential,
                                         policy: g.passphrase ? nil : g.policy,
-                                        passphrase: g.passphrase,
-                                        username: effectiveUsername(for: credential))
+                                        passphrase: g.passphrase)
     }
 
     /// The user's saved new-password defaults (type / length / look-alikes), as a
@@ -746,8 +746,7 @@ public final class AppModel {
             .compactMap {
                 try? fixQueue.appendPending(credential: $0,
                                             policy: g.passphrase ? nil : g.policy,
-                                            passphrase: g.passphrase,
-                                            username: effectiveUsername(for: $0))
+                                            passphrase: g.passphrase)
             }
         section = .fixing
         // …then resolve their change URLs concurrently (URLSession throttles its own

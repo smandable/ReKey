@@ -84,7 +84,7 @@ struct FixProgressTests {
         #expect(!other.fixMaySaveFailed(otherCred))
     }
 
-    @Test("A user-supplied username on a blank login flows into the fix and persists")
+    @Test("A typed username labels a blank login (display only) and persists; the fix keeps the blank store identity")
     func usernameOverride() async throws {
         clear(); defer { clear() }
         let blankCsv = "name,url,username,password,note\nThing,https://thing.example/,,Weakpw123,\n"
@@ -95,12 +95,14 @@ struct FixProgressTests {
         #expect(model.effectiveUsername(for: cred) == "")
 
         model.setUsername("me@email.com", for: cred)
-        #expect(model.effectiveUsername(for: cred) == "me@email.com")
+        #expect(model.effectiveUsername(for: cred) == "me@email.com")   // shown in Findings
 
+        // Display only: the fix keeps the browser's real (blank) username, so the
+        // cleanup still matches the store entry.
         await model.enqueueFix(for: cred)
-        #expect(model.fixQueue.items.first?.username == "me@email.com")   // carried into the fix
+        #expect(model.fixQueue.items.first?.username == "")
 
-        // Persists across a relaunch + re-import (keyed by source|site).
+        // The label persists across a relaunch + re-import (keyed by source|site).
         let reopened = AppModel()
         reopened.importData(Data(blankCsv.utf8), displayName: "b.csv")
         let reCred = try #require(reopened.allCredentials.first)
