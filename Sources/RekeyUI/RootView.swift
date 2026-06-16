@@ -1,21 +1,27 @@
 import SwiftUI
 
-/// The app's main window: a sidebar (Import / Findings / Fix Queue) and a detail
-/// pane that swaps with the selected section.
+/// The app's main window: a sidebar (Import / Findings / Fix Queue / Clean Up)
+/// and a detail pane that swaps with the selected section.
 public struct RootView: View {
     @State private var model = AppModel()
 
     public init() {}
 
     public var body: some View {
-        @Bindable var model = model
-
         NavigationSplitView {
-            List(selection: sectionSelection) {
+            // Explicit Button rows rather than `List(selection:)`: the
+            // selection-binding sidebar was completely inert here (no row would
+            // highlight or activate, by mouse or keyboard). Buttons set the
+            // section directly and we render the highlight ourselves.
+            List {
                 ForEach(AppModel.Section.allCases) { section in
-                    Label(section.rawValue, systemImage: section.systemImage)
-                        .tag(section)
-                        .badge(badge(for: section))
+                    SidebarRow(
+                        section: section,
+                        isSelected: model.section == section,
+                        badge: badge(for: section)
+                    ) {
+                        model.section = section
+                    }
                 }
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
@@ -23,13 +29,6 @@ public struct RootView: View {
         } detail: {
             detail
         }
-    }
-
-    private var sectionSelection: Binding<AppModel.Section?> {
-        Binding(
-            get: { model.section },
-            set: { if let new = $0 { model.section = new } }
-        )
     }
 
     @ViewBuilder
@@ -49,5 +48,40 @@ public struct RootView: View {
         case .fixing: return model.fixQueue.items.filter { $0.status == .pending }.count
         case .cleanup: return 0
         }
+    }
+}
+
+/// One clickable sidebar entry, drawn to mimic a selected `.sidebar` list row.
+private struct SidebarRow: View {
+    let section: AppModel.Section
+    let isSelected: Bool
+    let badge: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Label(section.rawValue, systemImage: section.systemImage)
+                Spacer()
+                if badge > 0 {
+                    Text("\(badge)")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+        )
     }
 }
