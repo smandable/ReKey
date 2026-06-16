@@ -63,7 +63,7 @@ private struct FixCard: View {
     @Bindable var model: AppModel
     let item: FixItem
 
-    @State private var revealOld = false
+    @State private var revealOld = true
     @State private var revealNew = true
     @State private var style: Style = .strong
     @State private var length: Double = 20
@@ -80,7 +80,7 @@ private struct FixCard: View {
         var id: String { rawValue }
     }
 
-    enum CopiedField: Equatable { case current, new }
+    enum CopiedField: Equatable { case username, current, new }
 
     /// The live current-password secret (nil if the credential is no longer
     /// loaded). Copying it copies the real value even while it's masked on screen.
@@ -97,6 +97,7 @@ private struct FixCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 headerRow
                 Divider()
+                usernameRow
                 oldPasswordRow
                 newPasswordRow
                 policyRow
@@ -165,14 +166,32 @@ private struct FixCard: View {
 
     private var headerRow: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.registrableDomain).font(.headline)
-                Text(item.username.isEmpty ? "(no username)" : item.username)
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
+            Text(item.registrableDomain).font(.headline)
             Spacer()
             statusBadge
         }
+    }
+
+    private var usernameRow: some View {
+        HStack(spacing: 4) {
+            Text("Username").frame(width: 86, alignment: .leading).foregroundStyle(.secondary)
+            Text(item.username.isEmpty ? "(no username)" : item.username)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+            Spacer()
+            copyButton(copied: copiedField == .username, help: "Copy username") {
+                copyText(item.username)
+                flashCopied(.username)
+            }
+            .disabled(item.username.isEmpty)
+        }
+    }
+
+    /// Copy non-secret text (the username) to the clipboard. Unlike a password,
+    /// it isn't scheduled for auto-clear.
+    private func copyText(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     /// Uniform width for each trailing icon button so the show/hide and copy
