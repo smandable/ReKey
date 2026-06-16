@@ -36,6 +36,7 @@ struct FindingsView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 summary(report)
+                unsavedFixBanner
 
                 if groups.isEmpty {
                     ContentUnavailableView(
@@ -55,6 +56,22 @@ struct FindingsView: View {
             .frame(maxWidth: 760, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Top-of-Findings heads-up when a re-import shows fixed accounts still on the
+    /// old password — so a missed save is impossible to scroll past.
+    @ViewBuilder
+    private var unsavedFixBanner: some View {
+        let n = model.unsavedFixCount
+        if n > 0 {
+            Label("\(n) fixed account\(n == 1 ? "" : "s") may not have saved — your latest import still shows the old password. Look for the orange “May not have saved” flag below and Reopen to redo it.",
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+        }
     }
 
     private func summary(_ report: AuditReport) -> some View {

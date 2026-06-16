@@ -276,6 +276,14 @@ public final class AppModel {
         unsavedFixKeys.contains(Self.progressKey(for: credential))
     }
 
+    /// How many fixed accounts present in the current import look maybe-unsaved —
+    /// for the Findings banner.
+    public var unsavedFixCount: Int {
+        guard !unsavedFixKeys.isEmpty else { return 0 }
+        let present = Set(allCredentials.map { Self.progressKey(for: $0) })
+        return unsavedFixKeys.intersection(present).count
+    }
+
     private func saveProgress() {
         UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
         UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)

@@ -60,6 +60,7 @@ struct FixProgressTests {
         reopened.importData(Data(csv.utf8), displayName: "browser.csv")
         let reCred = try #require(reopened.allCredentials.first)
         #expect(reopened.fixMaySaveFailed(reCred))   // old password still present → warn
+        #expect(reopened.unsavedFixCount == 1)       // surfaced in the banner count
     }
 
     @Test("A re-import showing the new password clears the fix (saved OK)")
