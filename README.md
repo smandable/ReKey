@@ -164,7 +164,15 @@ flow:
    the new one, so it becomes your single, current store. (For an account only
    ever saved in an old browser, you may need to sign in once in the new one to
    reach its change page.)
-3. **Clean up the old browsers** — see below.
+3. **Clean up the old browsers.** Open the **Clean Up** tab, pick the browser
+   you're keeping, and Rekey lists every site saved in your *other* browsers —
+   pre-selecting the ones that also live in the browser you kept (true stale
+   duplicates, safe to remove) and flagging the ones that exist *only* in an old
+   browser (unchecked, since deleting loses the only copy). It generates one
+   `rekey-cleanup` script (preview by default; flip "actually delete" for the
+   real one) that you **copy or save and run in Terminal** — so you handle
+   hundreds of stale logins in one reviewed batch instead of one at a time. The
+   app still never deletes anything itself.
 
 ### Where/when does the cleanup command run?
 

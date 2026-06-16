@@ -32,12 +32,14 @@ public final class AppModel {
         case importing = "Import"
         case findings = "Findings"
         case fixing = "Fix Queue"
+        case cleanup = "Clean Up"
         public var id: String { rawValue }
         public var systemImage: String {
             switch self {
             case .importing: return "square.and.arrow.down"
             case .findings: return "list.bullet.rectangle"
             case .fixing: return "checkmark.shield"
+            case .cleanup: return "trash.slash"
             }
         }
     }
