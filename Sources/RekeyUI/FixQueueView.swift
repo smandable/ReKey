@@ -104,7 +104,7 @@ private struct FixCard: View {
                 if let command = StaleLoginGuidance.cliCommand(for: source,
                                                                domain: item.registrableDomain,
                                                                username: item.username) {
-                    Text("Or use the cleanup tool (previews first — add `--confirm` and quit the browser to delete):")
+                    Text("Or copy this and run it yourself in **Terminal** (Rekey never runs it). As written it just previews; to actually delete, quit \(source.displayName), then re-run it with `--confirm` added:")
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(alignment: .top) {

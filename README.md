@@ -149,6 +149,54 @@ so the app never broadcasts your whole account list by probing every domain.
 
 ---
 
+## Switching your primary browser (consolidating)
+
+Used Chrome, then Firefox, now Arc? Rekey is browser-agnostic. The consolidation
+flow:
+
+1. **Audit everything.** Export a CSV from *each* browser you've used and import
+   them all (tag Chromium files with the right browser in the dropdown). Rekey
+   merges them, so reuse across browsers is caught.
+2. **Fix into your new primary.** Set your macOS default browser to the one you
+   want to keep — **System Settings → Desktop & Dock → Default web browser**.
+   Every change page opens there and that browser saves the new password, so the
+   default becomes your single, current store. (For an account only ever saved in
+   an old browser, you may need to sign in once in the new one to reach its change
+   page.)
+3. **Clean up the old browsers** — see below.
+
+### Where/when does the cleanup command run?
+
+The fix-queue card shows a `rekey-cleanup delete …` command, but **you run it
+yourself, in Terminal** — the app shows and copies it, and never runs it (it's
+the only non-sandboxed, destructive piece, kept separate on purpose). Run it
+*after* you've changed/migrated a password (so the new browser has it), to remove
+the now-stale copy in the old browser. There's no automatic trigger; it's a
+deliberate manual step, and you can batch several up in one Terminal session.
+
+Two cases:
+
+- **Reused / compromised logins** (the ones that went through the fix queue):
+  after you mark each fixed, its **"Old login still saved?"** card hands you the
+  exact command, already scoped to that login's origin browser
+  (e.g. `--browser chrome`).
+- **Logins that lived *only* in an old browser** and were never flagged: these
+  don't appear in the fix queue, so no card is shown. Inventory them directly and
+  prune what you've migrated:
+
+  ```bash
+  # See everything saved in the old browser:
+  swift run rekey-cleanup list --browser chrome
+  swift run rekey-cleanup list --browser firefox
+
+  # Preview, then (after quitting that browser) delete a migrated one:
+  swift run rekey-cleanup delete --browser chrome --site oldsite.com
+  swift run rekey-cleanup delete --browser chrome --site oldsite.com --confirm
+  ```
+
+  It always dry-runs first, refuses to run while the browser is open, and backs up
+  the store before deleting.
+
 ## Deleting stale logins (`rekey-cleanup`)
 
 After you change a password, the browser usually *updates* the saved login in

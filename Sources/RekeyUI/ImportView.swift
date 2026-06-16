@@ -46,6 +46,7 @@ struct ImportView: View {
                     auditBar
                 }
 
+                multiBrowserNote
                 privacyNote
             }
             .padding(20)
@@ -95,6 +96,22 @@ struct ImportView: View {
             }
             .padding(6)
         }
+    }
+
+    private var multiBrowserNote: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Switched browsers over the years?", systemImage: "arrow.triangle.branch")
+                .font(.headline)
+            Text("""
+            Export and import from **every** browser you've used (Chrome, Firefox, Arc, …) — Rekey audits them together, so a password reused across them is caught.
+
+            • **Fixing** opens each change page in your **default browser**, and that browser saves the new password. So set your macOS default (System Settings → Desktop & Dock → Default web browser) to the browser you want to keep using — it becomes your single, current store.
+            • **Old copies** left in the browsers you've stopped using don't disappear. Rekey never deletes them; you remove them yourself with the `rekey-cleanup` Terminal tool — each fixed item shows the exact command, and you can inventory a whole browser with `rekey-cleanup list --browser chrome`.
+            """)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.top, 4)
     }
 
     private var header: some View {
