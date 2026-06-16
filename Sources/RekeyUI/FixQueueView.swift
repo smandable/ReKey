@@ -65,6 +65,7 @@ struct FixQueueView: View {
                     HStack {
                         Button { copyCleanup(script) } label: {
                             Label(cleanupCopied ? "Copied" : "Copy all", systemImage: cleanupCopied ? "checkmark" : "doc.on.doc")
+                                .foregroundStyle(cleanupCopied ? AnyShapeStyle(.green) : AnyShapeStyle(.primary))
                         }
                         Button { saveCleanup(script) } label: {
                             Label("Save as new file…", systemImage: "square.and.arrow.down")
@@ -168,6 +169,10 @@ struct FixQueueView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(script, forType: .string)
         cleanupCopied = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            cleanupCopied = false
+        }
     }
 
     private func saveCleanup(_ script: String) {
@@ -357,6 +362,7 @@ private struct FixCard: View {
                             copyCommand(command)
                         } label: {
                             Image(systemName: copiedCommand ? "checkmark" : "doc.on.doc")
+                                .foregroundStyle(copiedCommand ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
                         }
                         .buttonStyle(.borderless)
                         .help("Copy command")
@@ -374,6 +380,10 @@ private struct FixCard: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(command, forType: .string)
         copiedCommand = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            copiedCommand = false
+        }
     }
 
     private var headerRow: some View {

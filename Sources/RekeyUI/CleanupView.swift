@@ -136,6 +136,7 @@ struct CleanupView: View {
             HStack {
                 Button { copyScript(script) } label: {
                     Label(copied ? "Copied" : "Copy script", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        .foregroundStyle(copied ? AnyShapeStyle(.green) : AnyShapeStyle(.primary))
                 }
                 Button { saveScript(script) } label: {
                     Label("Save script…", systemImage: "square.and.arrow.down")
@@ -197,6 +198,10 @@ struct CleanupView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(script, forType: .string)
         copied = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
     }
 
     private func saveScript(_ script: String) {
