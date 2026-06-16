@@ -25,18 +25,12 @@ enum StaleLoginGuidance {
     /// after quitting the browser). Nil when the tool doesn't support the source.
     static func cliCommand(for source: BrowserSource, domain: String, username: String) -> String? {
         guard let browser = source.cleanupCLIName else { return nil }
-        var command = "rekey-cleanup delete --browser \(browser) --site \(domain)"
+        var command = "rekey-cleanup delete --browser \(browser) --site \(domain.shellArgument)"
         // Firefox usernames are encrypted, so the tool can't filter by them;
         // only Chromium narrows by username.
         if source.isChromiumFamily, !username.isEmpty {
-            command += " --username \(shellQuote(username))"
+            command += " --username \(username.shellArgument)"
         }
         return command
-    }
-
-    private static func shellQuote(_ value: String) -> String {
-        let safe = value.allSatisfy { $0.isLetter || $0.isNumber || "@._-+".contains($0) }
-        if safe { return value }
-        return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }

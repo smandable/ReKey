@@ -59,7 +59,7 @@ enum CleanupPlanner {
     /// Site-level `rekey-cleanup` command for a candidate, or nil if unsupported.
     static func command(for candidate: Candidate, confirm: Bool) -> String? {
         guard let browser = candidate.browser.cleanupCLIName else { return nil }
-        var cmd = "rekey-cleanup delete --browser \(browser) --site \(candidate.domain)"
+        var cmd = "rekey-cleanup delete --browser \(browser) --site \(candidate.domain.shellArgument)"
         if confirm { cmd += " --confirm" }
         return cmd
     }

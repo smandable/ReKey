@@ -697,7 +697,7 @@ public final class AppModel {
             for site in plan.manualSites {
                 let cli = site.browser.cleanupCLIName ?? site.browser.rawValue
                 lines.append("#    \(site.domain) (\(site.browser.displayName), \(site.loginCount) logins):")
-                lines.append("#      rekey-cleanup list --browser \(cli) --site \(site.domain)")
+                lines.append("#      rekey-cleanup list --browser \(cli) --site \(site.domain.shellArgument)")
                 lines.append("#      rekey-cleanup delete --browser \(cli) --id <id-of-the-blank-username-row> --confirm")
             }
         }

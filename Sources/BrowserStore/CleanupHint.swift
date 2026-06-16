@@ -25,7 +25,7 @@ public enum CleanupHint {
         let noun = siteMatchCount == 1 ? "login" : "logins"
         let verb = siteMatchCount == 1 ? "exists" : "exist"
         return "Note: \(siteMatchCount) other \(noun) for \"\(site)\" \(verb) under a different or blank "
-            + "username/id. Inspect: rekey-cleanup list --browser \(browser.rawValue) --site \(site)"
+            + "username/id. Inspect: rekey-cleanup list --browser \(browser.rawValue) --site \(site.shellArgument)"
     }
 
     /// A delete that matched exactly one login via a site/username filter (not
@@ -46,9 +46,9 @@ public enum CleanupHint {
         browser: BrowserSource
     ) -> String {
         var cmd = "rekey-cleanup delete --browser \(browser.rawValue)"
-        if let site = filter.site, !site.isEmpty { cmd += " --site \(site)" }
-        if let user = filter.username, !user.isEmpty { cmd += " --username \(user)" }
-        cmd += " --id \(login.id) --confirm"
+        if let site = filter.site, !site.isEmpty { cmd += " --site \(site.shellArgument)" }
+        if let user = filter.username, !user.isEmpty { cmd += " --username \(user.shellArgument)" }
+        cmd += " --id \(login.id.shellArgument) --confirm"
         return cmd
     }
 }

@@ -66,4 +66,25 @@ struct CleanupHintTests {
         #expect(CleanupHint.idForceCommand(login: login, filter: LoginFilter(site: "x.com", username: "me@y.com"), browser: .chrome)
             == "rekey-cleanup delete --browser chrome --site x.com --username me@y.com --id 212 --confirm")
     }
+
+    @Test("Generated commands shell-quote injection in site/username")
+    func idForceCommandNeutralizesInjection() {
+        let login = StoredLogin(id: "5", browser: .arc, origin: "x", signonRealm: nil,
+                                username: "", usernameIsEncrypted: false, createdAt: nil, lastUsedAt: nil)
+        let cmd = CleanupHint.idForceCommand(
+            login: login, filter: LoginFilter(site: "x.com; rm -rf ~"), browser: .arc)
+        #expect(cmd.contains("--site 'x.com; rm -rf ~'"))   // single-quoted as one arg
+        #expect(!cmd.contains("--site x.com;"))             // never bare
+    }
+
+    @Test("shellArgument leaves clean values bare and quotes metacharacters")
+    func shellArgumentQuoting() {
+        #expect("github.com".shellArgument == "github.com")
+        #expect("me@x.com".shellArgument == "me@x.com")
+        #expect("212".shellArgument == "212")
+        #expect("a b".shellArgument == "'a b'")
+        #expect("x;rm -rf".shellArgument == "'x;rm -rf'")
+        #expect("$(whoami)".shellArgument == "'$(whoami)'")
+        #expect("it's".shellArgument == "'it'\\''s'")
+    }
 }
