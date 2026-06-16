@@ -226,27 +226,22 @@ private struct CredentialRow: View {
                                       color: .orange)
                         }
                         if isStray {
-                            PillBadge(icon: "person.crop.circle.badge.questionmark", text: "Likely stray", color: .gray)
+                            PillBadge(icon: "person.crop.circle.badge.questionmark", text: "No username", color: .gray)
                         }
                         if isNoUsername {
                             PillBadge(icon: "person.crop.circle", text: "No username", color: .gray)
                         }
                         Spacer()
-                        if isStray {
-                            // No "Add to queue" — there's no account behind a blank
-                            // username; the right action is delete-in-browser.
-                            Button("Ignore") { model.ignoreFinding(for: cred) }
-                                .controlSize(.small)
-                                .help("Delete the entry in your browser first, then Ignore it here.")
-                        } else if hasSecurityIssue {
+                        if hasSecurityIssue || isStray || isNoUsername {
+                            // Blank-username entries are fixable too: the username
+                            // (usually an email) is often just missing from the export,
+                            // not absent — so offer Add to queue, not delete-only.
                             fixControl
                             Button("Ignore") { model.ignoreFinding(for: cred) }
                                 .controlSize(.small)
-                                .help("Hide this finding — you've reviewed and accepted it. Bring it back with 'Show ignored'.")
-                        } else if isNoUsername {
-                            Button("Ignore") { model.ignoreFinding(for: cred) }
-                                .controlSize(.small)
-                                .help("Hide this once you've reviewed it.")
+                                .help((isStray || isNoUsername)
+                                    ? "Real account? Keep it (Ignore) or fix it. A leftover? Delete it in your browser first, then Ignore."
+                                    : "Hide this finding — you've reviewed and accepted it. Bring it back with 'Show ignored'.")
                         }
                     }
                 }
@@ -258,9 +253,9 @@ private struct CredentialRow: View {
                     }
                     if isStray {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Likely a leftover save — there's no account behind a blank username, so **Fixing won't help.** Instead:")
-                            Text("1. \(StaleLoginGuidance.manualSteps(for: cred.source, domain: cred.site))")
-                            Text("2. Then click **Ignore** here to clear it.")
+                            Text("No saved username — and this site also has a login *with* one. Often the username (e.g. your email) just wasn't exported, so this may be a **real second account**, or a leftover duplicate of the other.")
+                            Text("• Real account? **Add to queue** and fix it — you'll sign in with your email.")
+                            Text("• A leftover? \(StaleLoginGuidance.manualSteps(for: cred.source, domain: cred.site)) Then **Ignore**.")
                         }
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -269,7 +264,7 @@ private struct CredentialRow: View {
                         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                     }
                     if isNoUsername {
-                        Text("Saved without a username — likely captured on a reset or sign-up page. It's probably a real login (deleting would lose the password); just confirm the account before changing it.")
+                        Text("No saved username — often the username (e.g. your email) just wasn't exported, not that the account isn't real. Probably a real login: **Add to queue** to fix it (you'll sign in with your email), or **Ignore** to keep it. Only delete if you're sure it's a leftover.")
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
