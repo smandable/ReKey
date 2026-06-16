@@ -253,6 +253,9 @@ private struct FixCard: View {
     @State private var avoidAmbiguous: Bool
     @State private var showCleanup = false
     @State private var copiedCommand = false
+    /// Gate on "Mark done": the user confirms the browser actually saved the new
+    /// password, since Rekey holds it in memory only and can't recover it after.
+    @State private var confirmedSaved = false
     /// Which password field was just copied, for a transient checkmark.
     @State private var copiedField: CopiedField?
 
@@ -317,6 +320,9 @@ private struct FixCard: View {
                 policyRow
                 changeURLRow
                 Divider()
+                if item.status == .opened {
+                    savedReminder
+                }
                 actionRow
                 if isCrossEcosystem {
                     crossEcosystemNote
@@ -597,13 +603,22 @@ private struct FixCard: View {
         }
     }
 
+    /// Shown in the `.opened` state: the new password lives only on this card and
+    /// is gone once the item is done — so confirm the browser saved it first.
+    private var savedReminder: some View {
+        Label("Change it on the site, then confirm your browser saved the **new** password (check its saved-passwords list). After you mark this done and reopen Rekey, this value is gone — Rekey can't recover it. Need it again? Use the copy button on the New row.",
+              systemImage: "exclamationmark.triangle.fill")
+            .font(.caption).foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private var actionRow: some View {
         HStack {
             if item.status == .pending {
                 Label("Copy & open copies the new password and opens the change page in your browser.", systemImage: "info.circle")
-                    .font(.caption).foregroundStyle(.secondary)
-            } else if item.status == .opened {
-                Label("Copied to clipboard (auto-clears in ~\(clearSeconds)s). Change it on the site, then mark done.", systemImage: "doc.on.clipboard")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
@@ -615,8 +630,12 @@ private struct FixCard: View {
                 } label: { Label("Copy & open", systemImage: "doc.on.doc") }
                     .buttonStyle(.borderedProminent)
             case .opened:
+                Toggle("Browser saved it", isOn: $confirmedSaved)
+                    .toggleStyle(.checkbox).font(.caption)
+                    .help("Confirm your browser actually saved the new password before marking done — Rekey can't recover it afterward.")
                 Button("Mark done") { model.recordFixDone(item) }
                     .buttonStyle(.borderedProminent)
+                    .disabled(!confirmedSaved)
             case .done:
                 Label("Done", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             case .skipped:
