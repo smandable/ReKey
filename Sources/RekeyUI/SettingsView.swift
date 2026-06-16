@@ -6,7 +6,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.showPasswords) private var showPasswords = true
     @AppStorage(Prefs.defaultPwStyle) private var defaultPwStyle = Prefs.styleStrong
     @AppStorage(Prefs.defaultPwLength) private var defaultPwLength = Prefs.defaultLength
-    @AppStorage(Prefs.avoidLookAlikes) private var avoidLookAlikes = true
+    @AppStorage(Prefs.avoidLookAlikes) private var avoidLookAlikes = false
 
     private let styles = [Prefs.styleStrong, Prefs.styleLettersDigits, Prefs.stylePassphrase]
 
@@ -57,7 +57,7 @@ struct SettingsView: View {
                                     .frame(width: 120)
                             }
                             HStack(spacing: 6) {
-                                Toggle("Avoid look-alike characters", isOn: $avoidLookAlikes)
+                                Toggle("No look-alikes", isOn: $avoidLookAlikes)
                                 HelpHint("\"No look-alikes\" excludes the characters that are easy to confuse when reading or typing a password by hand — capital I, lowercase l, the digit 1, capital O, and zero 0.")
                             }
                         } else {

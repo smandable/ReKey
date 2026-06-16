@@ -22,12 +22,13 @@ enum Prefs {
         d.object(forKey: showPasswords) as? Bool ?? true
     }
 
-    /// The current new-password generation defaults, with fallbacks.
+    /// The current new-password generation defaults, with fallbacks. "No
+    /// look-alikes" defaults OFF (unchecked) — the full character set.
     static func currentGeneration(_ d: UserDefaults = .standard) -> (style: String, length: Int, avoidLookAlikes: Bool) {
         (
             d.string(forKey: defaultPwStyle) ?? styleStrong,
             d.object(forKey: defaultPwLength) as? Int ?? defaultLength,
-            d.object(forKey: avoidLookAlikes) as? Bool ?? true
+            d.object(forKey: avoidLookAlikes) as? Bool ?? false
         )
     }
 

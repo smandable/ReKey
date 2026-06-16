@@ -2,14 +2,22 @@ import SwiftUI
 import Model
 import ResetRouter
 
-/// A small "?" that reveals an explanation on hover (the system tooltip).
+/// A small "?" that reveals an explanation on hover. Uses a popover rather than
+/// `.help()` so it appears instantly instead of after the system tooltip delay.
 struct HelpHint: View {
     let text: String
+    @State private var show = false
     init(_ text: String) { self.text = text }
     var body: some View {
         Image(systemName: "questionmark.circle")
             .foregroundStyle(.secondary)
-            .help(text)
+            .onHover { show = $0 }
+            .popover(isPresented: $show, arrowEdge: .bottom) {
+                Text(text)
+                    .font(.callout)
+                    .frame(maxWidth: 300, alignment: .leading)
+                    .padding(12)
+            }
     }
 }
 
