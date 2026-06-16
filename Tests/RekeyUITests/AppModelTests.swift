@@ -115,6 +115,27 @@ struct IgnoreFindingTests {
 }
 
 @MainActor
+@Suite("Import dedup")
+struct ImportDedupTests {
+    @Test("Exact-duplicate rows (same site+username+password, differing only by URL) collapse to one")
+    func collapsesExactDuplicates() {
+        // successfactors: one Arc login associated with two subdomains, exported
+        // as two identical rows. example.com is a separate credential.
+        let csv = """
+        name,url,username,password,note
+        SF,https://career4.successfactors.com/careers,me@x.com,Cap#amy5111,
+        SF,https://career8.successfactors.com/career,me@x.com,Cap#amy5111,
+        Other,https://example.com/,me@x.com,different-pw,
+        """
+        let model = AppModel()
+        model.importData(Data(csv.utf8), displayName: "arc.csv")
+
+        #expect(model.allCredentials.count == 2)
+        #expect(model.allCredentials.filter { $0.registrableDomain == "successfactors.com" }.count == 1)
+    }
+}
+
+@MainActor
 @Suite("Secure delete")
 struct SecureDeleteTests {
     private func tempFile(_ contents: String, perms: Int? = nil) -> URL {

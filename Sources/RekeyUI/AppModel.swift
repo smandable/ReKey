@@ -305,7 +305,17 @@ public final class AppModel {
     }
 
     private func reindexCredentials() {
-        allCredentials = files.flatMap(\.result.credentials)
+        // Collapse exact duplicates: the same (browser, site, username, password)
+        // exported as multiple rows — e.g. one Arc login associated with two
+        // subdomains becomes two identical CSV rows. Keep the first occurrence.
+        var seen = Set<String>()
+        var deduped: [ImportedCredential] = []
+        for c in files.flatMap(\.result.credentials) {
+            let key = [c.source.rawValue, c.registrableDomain, c.username, c.password.sha256().base64EncodedString()]
+                .joined(separator: "\u{1}")
+            if seen.insert(key).inserted { deduped.append(c) }
+        }
+        allCredentials = deduped
         credentialIndex = Dictionary(allCredentials.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
