@@ -188,7 +188,20 @@ private struct CredentialRow: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    fieldLine("Username:", value: cred.username.isEmpty ? "(none)" : cred.username)
+                    if cred.username.isEmpty {
+                        // No username in the export — let the user type the real one
+                        // (usually their email) so it shows here and the fix/cleanup
+                        // can target it precisely.
+                        HStack(spacing: 4) {
+                            Text("Username:").foregroundStyle(.secondary)
+                            TextField("add your email…", text: usernameBinding)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 240)
+                        }
+                        .font(.callout)
+                    } else {
+                        fieldLine("Username:", value: cred.username)
+                    }
                     HStack(spacing: 4) {
                         Text("Password:").foregroundStyle(.secondary)
                         Text(revealPassword ? cred.password.reveal() : cred.password.masked())
@@ -288,6 +301,14 @@ private struct CredentialRow: View {
             Text(value).fontWeight(.medium).textSelection(.enabled)
         }
         .font(.callout)
+    }
+
+    /// Two-way binding to the user-supplied username for a blank-username login.
+    private var usernameBinding: Binding<String> {
+        Binding(
+            get: { model.effectiveUsername(for: cred) },
+            set: { model.setUsername($0, for: cred) }
+        )
     }
 
     @ViewBuilder

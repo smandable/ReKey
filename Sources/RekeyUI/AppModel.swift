@@ -141,10 +141,15 @@ public final class AppModel {
     private let skippedDefaultsKey = "rekey.skippedKeys"
     private let ignoredDefaultsKey = "rekey.ignoredKeys"
     private let saveRecordsDefaultsKey = "rekey.fixSaveRecords"
+    private let usernameOverridesDefaultsKey = "rekey.usernameOverrides"
 
     /// Old/new password hashes per fixed account (progressKey), so a later import
     /// can verify the change saved. Hashes only — no passwords. Persisted.
     private var fixSaveRecords: [String: FixSaveRecord] = [:]
+    /// User-supplied usernames for blank-username logins (the email often dropped
+    /// from the export), keyed by source|site. Persisted; used only for display,
+    /// the fix flow, and precise cleanup — never the audit/progress identity.
+    private var usernameOverrides: [String: String] = [:]
     /// Fixed accounts whose most recent re-import of their source still shows the
     /// OLD password (not the new) — the change likely didn't save. Derived on
     /// import; not persisted.
@@ -284,6 +289,29 @@ public final class AppModel {
         return unsavedFixKeys.intersection(present).count
     }
 
+    private static func usernameOverrideKey(for cred: ImportedCredential) -> String {
+        "\(cred.source.rawValue)|\(cred.site)"
+    }
+
+    /// The username to show/use for a credential: its real one, or — for a
+    /// blank-username login — a username the user supplied (the email the export
+    /// dropped). Empty when neither exists.
+    public func effectiveUsername(for cred: ImportedCredential) -> String {
+        if !cred.username.isEmpty { return cred.username }
+        return usernameOverrides[Self.usernameOverrideKey(for: cred)] ?? ""
+    }
+
+    /// Record (or clear, when blank) the username the user supplies for a
+    /// blank-username login. No-op on a login that already has one.
+    public func setUsername(_ username: String, for cred: ImportedCredential) {
+        guard cred.username.isEmpty else { return }
+        let key = Self.usernameOverrideKey(for: cred)
+        let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { usernameOverrides.removeValue(forKey: key) }
+        else { usernameOverrides[key] = trimmed }
+        saveProgress()
+    }
+
     private func saveProgress() {
         UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
         UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)
@@ -291,6 +319,7 @@ public final class AppModel {
         // [progressKey: [oldHash, newHash, source]] — plist-native, hashes only.
         UserDefaults.standard.set(fixSaveRecords.mapValues { [$0.oldHash, $0.newHash, $0.source] },
                                   forKey: saveRecordsDefaultsKey)
+        UserDefaults.standard.set(usernameOverrides, forKey: usernameOverridesDefaultsKey)
     }
 
     private func loadProgress() {
@@ -301,6 +330,7 @@ public final class AppModel {
         fixSaveRecords = raw.compactMapValues {
             $0.count == 3 ? FixSaveRecord(oldHash: $0[0], newHash: $0[1], source: $0[2]) : nil
         }
+        usernameOverrides = UserDefaults.standard.dictionary(forKey: usernameOverridesDefaultsKey) as? [String: String] ?? [:]
     }
 
     // MARK: - Change-page browser
@@ -612,7 +642,8 @@ public final class AppModel {
         let g = currentGenerationChoice()
         _ = try? await fixQueue.enqueue(credential: credential,
                                         policy: g.passphrase ? nil : g.policy,
-                                        passphrase: g.passphrase)
+                                        passphrase: g.passphrase,
+                                        username: effectiveUsername(for: credential))
     }
 
     /// The user's saved new-password defaults (type / length / look-alikes), as a
@@ -715,7 +746,8 @@ public final class AppModel {
             .compactMap {
                 try? fixQueue.appendPending(credential: $0,
                                             policy: g.passphrase ? nil : g.policy,
-                                            passphrase: g.passphrase)
+                                            passphrase: g.passphrase,
+                                            username: effectiveUsername(for: $0))
             }
         section = .fixing
         // …then resolve their change URLs concurrently (URLSession throttles its own

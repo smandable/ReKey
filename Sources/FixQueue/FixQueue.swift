@@ -96,9 +96,10 @@ public final class FixQueue {
     public func enqueue(
         credential: ImportedCredential,
         policy: PasswordPolicy? = nil,
-        passphrase: Bool = false
+        passphrase: Bool = false,
+        username: String? = nil
     ) async throws -> UUID? {
-        guard let id = try appendPending(credential: credential, policy: policy, passphrase: passphrase)
+        guard let id = try appendPending(credential: credential, policy: policy, passphrase: passphrase, username: username)
         else { return nil }
         await resolveChangeURL(itemID: id)
         return id
@@ -112,7 +113,8 @@ public final class FixQueue {
     public func appendPending(
         credential: ImportedCredential,
         policy: PasswordPolicy? = nil,
-        passphrase: Bool = false
+        passphrase: Bool = false,
+        username: String? = nil
     ) throws -> UUID? {
         guard !items.contains(where: { $0.credentialID == credential.id }) else { return nil }
 
@@ -124,7 +126,7 @@ public final class FixQueue {
             credentialID: credential.id,
             registrableDomain: credential.registrableDomain,
             host: credential.host,
-            username: credential.username,
+            username: username ?? credential.username,
             oldPasswordMasked: credential.password.masked(),
             newPassword: newPassword,
             changeURL: URL(string: "https://\(credential.site)/"),

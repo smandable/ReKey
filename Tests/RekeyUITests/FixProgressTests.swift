@@ -13,6 +13,7 @@ struct FixProgressTests {
         UserDefaults.standard.removeObject(forKey: completedKey)
         UserDefaults.standard.removeObject(forKey: skippedKey)
         UserDefaults.standard.removeObject(forKey: "rekey.fixSaveRecords")
+        UserDefaults.standard.removeObject(forKey: "rekey.usernameOverrides")
     }
     private let csv = "name,url,username,password,note\nGitHub,https://github.com/,sean,Tr0ub4dour&3,\n"
     private func csv(password: String) -> String {
@@ -81,6 +82,29 @@ struct FixProgressTests {
         other.importData(Data(csv(password: "something-else-entirely").utf8), displayName: "browser.csv")
         let otherCred = try #require(other.allCredentials.first)
         #expect(!other.fixMaySaveFailed(otherCred))
+    }
+
+    @Test("A user-supplied username on a blank login flows into the fix and persists")
+    func usernameOverride() async throws {
+        clear(); defer { clear() }
+        let blankCsv = "name,url,username,password,note\nThing,https://thing.example/,,Weakpw123,\n"
+        let model = AppModel()
+        model.importData(Data(blankCsv.utf8), displayName: "b.csv")
+        let cred = try #require(model.allCredentials.first)
+        #expect(cred.username.isEmpty)
+        #expect(model.effectiveUsername(for: cred) == "")
+
+        model.setUsername("me@email.com", for: cred)
+        #expect(model.effectiveUsername(for: cred) == "me@email.com")
+
+        await model.enqueueFix(for: cred)
+        #expect(model.fixQueue.items.first?.username == "me@email.com")   // carried into the fix
+
+        // Persists across a relaunch + re-import (keyed by source|site).
+        let reopened = AppModel()
+        reopened.importData(Data(blankCsv.utf8), displayName: "b.csv")
+        let reCred = try #require(reopened.allCredentials.first)
+        #expect(reopened.effectiveUsername(for: reCred) == "me@email.com")
     }
 
     @Test("Reopen un-marks a fixed account so it can be redone")
