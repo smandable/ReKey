@@ -3,8 +3,8 @@ import AppKit
 import Model
 import PasswordGenerator
 
-/// Step 3: the fix queue. Each item is a preview/approve card. Approving copies
-/// the new password and opens the change page — the user makes the actual
+/// Step 3: the fix queue. Each item is a preview card whose "Copy & open" action
+/// copies the new password and opens the change page — the user makes the actual
 /// change on the site. Nothing here edits a credential or writes to any store.
 struct FixQueueView: View {
     @Bindable var model: AppModel
@@ -214,7 +214,7 @@ struct FixQueueView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Fix queue").font(.largeTitle.bold())
-            Text("Review each change, then Approve. Rekey copies the new password and opens the site's change page — you make the change there, and your browser offers to save it. Rekey never changes a password for you.")
+            Text("Review each change, then Copy & open: Rekey copies the new password and opens the site's change page — you make the change there, and your browser offers to save it. Rekey never changes a password for you.")
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 Image(systemName: "safari")
@@ -600,7 +600,7 @@ private struct FixCard: View {
     private var actionRow: some View {
         HStack {
             if item.status == .pending {
-                Label("Approving copies the new password and opens the change page.", systemImage: "info.circle")
+                Label("Copy & open copies the new password and opens the change page in your browser.", systemImage: "info.circle")
                     .font(.caption).foregroundStyle(.secondary)
             } else if item.status == .opened {
                 Label("Copied to clipboard (auto-clears in ~\(clearSeconds)s). Change it on the site, then mark done.", systemImage: "doc.on.clipboard")
@@ -612,7 +612,7 @@ private struct FixCard: View {
                 Button("Skip", role: .cancel) { model.recordFixSkipped(item) }
                 Button {
                     model.fixQueue.approve(itemID: item.id)
-                } label: { Label("Approve", systemImage: "checkmark") }
+                } label: { Label("Copy & open", systemImage: "doc.on.doc") }
                     .buttonStyle(.borderedProminent)
             case .opened:
                 Button("Mark done") { model.recordFixDone(item) }

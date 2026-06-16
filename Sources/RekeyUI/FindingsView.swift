@@ -92,7 +92,7 @@ struct FindingsView: View {
                     Toggle("Show ignored", isOn: $showIgnored).toggleStyle(.switch)
                 }
                 Button { Task { await model.enqueueAllFlagged() } } label: {
-                    Label("Fix all", systemImage: "checkmark.shield")
+                    Label("Add all to queue", systemImage: "checkmark.shield")
                 }
                 .disabled(report.findingsByCredential.isEmpty)
             }
@@ -216,7 +216,7 @@ private struct CredentialRow: View {
                         }
                         Spacer()
                         if isStray {
-                            // No "Fix this" — there's no account behind a blank
+                            // No "Add to queue" — there's no account behind a blank
                             // username; the right action is delete-in-browser.
                             Button("Ignore") { model.ignoreFinding(for: cred) }
                                 .controlSize(.small)
@@ -286,7 +286,7 @@ private struct CredentialRow: View {
         } else if model.fixQueue.items.contains(where: { $0.credentialID == cred.id }) {
             Label("In fix queue", systemImage: "checkmark").font(.caption2).foregroundStyle(.green)
         } else {
-            Button("Fix this") { Task { await model.enqueueFix(for: cred) } }.controlSize(.small)
+            Button("Add to queue") { Task { await model.enqueueFix(for: cred) } }.controlSize(.small)
         }
     }
 }

@@ -97,8 +97,8 @@ public final class FixQueue {
         let newPassword = try generator.generate(policy ?? defaultPolicy)
         let resolution = await router.resolveChangeURL(for: credential.registrableDomain)
 
-        // Re-check after the await: another task (e.g. "Fix all" racing a single
-        // "Fix this") may have enqueued this credential while we were suspended.
+        // Re-check after the await: another task (e.g. "Add all to queue" racing a
+        // single "Add to queue") may have enqueued this credential while suspended.
         guard !items.contains(where: { $0.credentialID == credential.id }) else { return nil }
 
         let item = FixItem(
