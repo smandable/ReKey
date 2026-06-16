@@ -137,6 +137,23 @@ struct FixQueueTests {
         #expect(before != after)
     }
 
+    @Test("Enqueue with passphrase:true builds the item with a multi-word value")
+    func enqueuePassphrase() async throws {
+        let (queue, _, _) = try makeQueue()
+        _ = try #require(try await queue.enqueue(credential: credential(), passphrase: true))
+        let pw = try #require(queue.items.first?.newPassword.reveal())
+        #expect(pw.split(separator: "-").count == 6)   // diceware, default separator
+    }
+
+    @Test("Enqueue resolves the change URL and fills it in (placeholder upgraded)")
+    func enqueueResolvesURL() async throws {
+        // Stub resolves to a well-known URL; after enqueue the item carries it,
+        // not the site-root placeholder it was appended with.
+        let (queue, _, _) = try makeQueue()
+        _ = try #require(try await queue.enqueue(credential: credential()))
+        #expect(queue.items.first?.changeURL?.absoluteString == "https://acme.example/.well-known/change-password")
+    }
+
     @Test("Regenerate as a passphrase replaces with a multi-word value")
     func regeneratePassphrase() async throws {
         let (queue, _, _) = try makeQueue()

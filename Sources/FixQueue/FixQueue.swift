@@ -85,33 +85,47 @@ public final class FixQueue {
 
     // MARK: - Building the queue
 
-    /// Add a credential to the fix queue: generate a replacement and resolve its
-    /// change-password URL lazily (this is the user acting on this specific
-    /// item — resolution is never batched across the whole account list).
+    /// Add a credential to the fix queue: generate the replacement, append the
+    /// item *immediately* so the user's click registers at once, then resolve its
+    /// change-password URL and fill it in. Resolution is a per-item network probe
+    /// (never batched across the account list) that can be slow for an
+    /// unresponsive host — appending first means that never delays the card
+    /// appearing; it just shows the site root until the precise URL arrives.
     ///
     /// No-op if the credential is already queued. Returns the new item's id.
     @discardableResult
-    public func enqueue(credential: ImportedCredential, policy: PasswordPolicy? = nil) async throws -> UUID? {
+    public func enqueue(
+        credential: ImportedCredential,
+        policy: PasswordPolicy? = nil,
+        passphrase: Bool = false
+    ) async throws -> UUID? {
         guard !items.contains(where: { $0.credentialID == credential.id }) else { return nil }
 
-        let newPassword = try generator.generate(policy ?? defaultPolicy)
-        let resolution = await router.resolveChangeURL(for: credential.registrableDomain)
+        let newPassword = try passphrase
+            ? generator.generatePassphrase()
+            : generator.generate(policy ?? defaultPolicy)
 
-        // Re-check after the await: another task (e.g. "Add all to queue" racing a
-        // single "Add to queue") may have enqueued this credential while suspended.
-        guard !items.contains(where: { $0.credentialID == credential.id }) else { return nil }
-
+        // Append before the one suspension point below: the item shows instantly,
+        // and there's no window for a duplicate enqueue to slip in (guard→append
+        // run without an await between them), so no post-resolution re-check is
+        // needed. The site root is a usable placeholder until the probe returns.
         let item = FixItem(
             credentialID: credential.id,
             registrableDomain: credential.registrableDomain,
             username: credential.username,
             oldPasswordMasked: credential.password.masked(),
             newPassword: newPassword,
-            changeURL: resolution.url,
+            changeURL: URL(string: "https://\(credential.registrableDomain)/"),
             status: .pending
         )
         items.append(item)
-        resolutionSources[item.id] = resolution.source
+        resolutionSources[item.id] = .siteRoot
+
+        let resolution = await router.resolveChangeURL(for: credential.registrableDomain)
+        if let i = index(of: item.id) {
+            items[i].changeURL = resolution.url
+            resolutionSources[item.id] = resolution.source
+        }
         return item.id
     }
 

@@ -523,21 +523,18 @@ public final class AppModel {
     // MARK: - Fix queue bridge
 
     public func enqueueFix(for credential: ImportedCredential) async {
-        if let id = (try? await fixQueue.enqueue(credential: credential)) ?? nil {
-            applyDefaultGeneration(to: id)
-        }
+        let g = currentGenerationChoice()
+        _ = try? await fixQueue.enqueue(credential: credential,
+                                        policy: g.passphrase ? nil : g.policy,
+                                        passphrase: g.passphrase)
     }
 
-    /// Re-generate a just-enqueued item with the user's saved new-password
-    /// defaults (type / length / look-alikes from Settings).
-    private func applyDefaultGeneration(to itemID: UUID) {
+    /// The user's saved new-password defaults (type / length / look-alikes), as a
+    /// generation choice the fix queue can apply when it creates the item — so the
+    /// replacement is generated once, up front, with the right policy.
+    private func currentGenerationChoice() -> (passphrase: Bool, policy: PasswordPolicy) {
         let prefs = Prefs.currentGeneration()
-        let g = Prefs.generation(style: prefs.style, length: prefs.length, avoidLookAlikes: prefs.avoidLookAlikes)
-        if g.passphrase {
-            try? fixQueue.regeneratePassphrase(itemID: itemID)
-        } else {
-            try? fixQueue.regenerate(itemID: itemID, policy: g.policy)
-        }
+        return Prefs.generation(style: prefs.style, length: prefs.length, avoidLookAlikes: prefs.avoidLookAlikes)
     }
 
     // MARK: - Aggregated cleanup script (across all fixed logins)
@@ -625,10 +622,11 @@ public final class AppModel {
 
     public func enqueueAllFlagged() async {
         guard let report else { return }
+        let g = currentGenerationChoice()
         for cred in allCredentials where report.findingsByCredential[cred.id] != nil && !isFixed(cred) {
-            if let id = (try? await fixQueue.enqueue(credential: cred)) ?? nil {
-                applyDefaultGeneration(to: id)
-            }
+            _ = try? await fixQueue.enqueue(credential: cred,
+                                            policy: g.passphrase ? nil : g.policy,
+                                            passphrase: g.passphrase)
         }
         section = .fixing
     }

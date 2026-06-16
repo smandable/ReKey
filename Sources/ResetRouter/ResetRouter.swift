@@ -131,6 +131,9 @@ public struct ResetRouter: Sendable {
     private func probe(_ url: URL) async -> ProbeResult? {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        // A change-password probe is a nicety, not a blocker — don't let a slow or
+        // blackholing host hold it open for URLSession's 60s default.
+        request.timeoutInterval = 6
         do {
             let (_, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { return nil }
