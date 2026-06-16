@@ -189,9 +189,9 @@ private struct CredentialRow: View {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
                     if cred.username.isEmpty {
-                        // No username in the export — let the user type the real one
-                        // (usually their email) so it shows here and the fix/cleanup
-                        // can target it precisely.
+                        // The browser saved this login with no username — let the user
+                        // type the real one (usually their email) so it shows here and
+                        // the fix/cleanup can target it precisely.
                         HStack(spacing: 4) {
                             Text("Username:").foregroundStyle(.secondary)
                             TextField("add your email…", text: usernameBinding)
@@ -266,8 +266,8 @@ private struct CredentialRow: View {
                     }
                     if isStray {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("No saved username — and this site also has a login *with* one. Often the username (e.g. your email) just wasn't exported, so this may be a **real second account**, or a leftover duplicate of the other.")
-                            Text("• Real account? **Add to queue** and fix it — you'll sign in with your email.")
+                            Text("No username saved on this one, though the site also has a login *with* one. Your browser likely stored it without a username (common on multi-step sign-in forms) — making this a **real second account** — or it's a leftover duplicate of the other.")
+                            Text("• Real account? Type your email above, **Add to queue**, and fix it.")
                             Text("• A leftover? \(StaleLoginGuidance.manualSteps(for: cred.source, domain: cred.site)) Then **Ignore**.")
                         }
                         .font(.caption).foregroundStyle(.secondary)
@@ -277,7 +277,7 @@ private struct CredentialRow: View {
                         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                     }
                     if isNoUsername {
-                        Text("No saved username — often the username (e.g. your email) just wasn't exported, not that the account isn't real. Probably a real login: **Add to queue** to fix it (you'll sign in with your email), or **Ignore** to keep it. Only delete if you're sure it's a leftover.")
+                        Text("No username saved — your browser stored this login without one (common when the email and password are on separate pages), not that the account isn't real. Type your email above so Rekey can use it, then **Add to queue** to fix it, or **Ignore** to keep it. Tip: add the email to this entry in your browser's Password Manager so autofill has it too.")
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

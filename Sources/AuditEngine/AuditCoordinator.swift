@@ -37,9 +37,9 @@ public struct AuditReport: Sendable {
     /// autofill may come from whichever store you *didn't* update.
     public let crossEcosystemDuplicates: Set<UUID>
     /// Blank-username logins on a site that also has a named login — flagged for
-    /// review: could be a leftover/partial save, or a real second account whose
-    /// username (often an email) simply wasn't in the export. The UI offers both
-    /// fixing and deleting rather than assuming junk.
+    /// review: could be a leftover/partial save, or a real second account the
+    /// browser stored without a username (e.g. a multi-step sign-in form). The UI
+    /// offers fixing (and supplying the email) as well as deleting, not just junk.
     public let strayBlankUsername: Set<UUID>
     /// All domains, grouped, sorted alphabetically by registrable domain.
     public let domainGroups: [DomainGroup]
