@@ -145,15 +145,21 @@ public final class FixQueue {
     public func approve(itemID: UUID) {
         guard let i = index(of: itemID), items[i].status == .pending else { return }
 
-        clipboard.copy(items[i].newPassword)          // 1. copy (reveals internally, transiently)
+        copySecret(items[i].newPassword)              // 1. copy (+ auto-clear)
         if let url = items[i].changeURL {             // 2. open
             opener.open(url)
         }
         items[i].status = .opened                     // 3. status
+    }
 
-        // Schedule auto-clear by hash so we don't keep a plaintext copy of the
-        // password alive for the whole timeout just to match-before-clear.
-        scheduleClipboardClear(matchingHash: items[i].newPassword.sha256())
+    /// Copy a secret to the clipboard with the same hygiene as Approve: the
+    /// plaintext is written, and an auto-clear is scheduled by hash so we don't
+    /// hold the password alive for the whole timeout. Used by the per-field copy
+    /// buttons so the user can paste the current password (many sites require it
+    /// to authorize the change) and the new one into the site's form.
+    public func copySecret(_ secret: Secret) {
+        clipboard.copy(secret)
+        scheduleClipboardClear(matchingHash: secret.sha256())
     }
 
     /// User confirms they changed the password on the site (the browser saved

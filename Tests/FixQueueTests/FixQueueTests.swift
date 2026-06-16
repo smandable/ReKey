@@ -204,4 +204,21 @@ struct FixQueueTests {
         try await Task.sleep(for: .milliseconds(250))
         #expect(pasteboard.value == "something the user copied")
     }
+
+    @Test("copySecret puts the plaintext on the clipboard without opening anything")
+    func copySecretWritesValue() async throws {
+        let (queue, pasteboard, opener) = try makeQueue()
+        queue.copySecret(Secret("paste-this-current-password"))
+        #expect(pasteboard.value == "paste-this-current-password")
+        #expect(opener.opened.isEmpty)   // copy buttons never navigate
+    }
+
+    @Test("copySecret schedules the same hash-based auto-clear as approve")
+    func copySecretAutoClears() async throws {
+        let (queue, pasteboard, _) = try makeQueue(clearAfter: .milliseconds(40))
+        queue.copySecret(Secret("temp-current-pw"))
+        #expect(pasteboard.value == "temp-current-pw")
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(pasteboard.value == nil)   // auto-cleared by the scheduled timer
+    }
 }

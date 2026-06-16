@@ -70,12 +70,22 @@ private struct FixCard: View {
     @State private var avoidAmbiguous = true
     @State private var showCleanup = false
     @State private var copiedCommand = false
+    /// Which password field was just copied, for a transient checkmark.
+    @State private var copiedField: CopiedField?
 
     enum Style: String, CaseIterable, Identifiable {
         case strong = "Strong"
         case lettersDigits = "Letters + digits"
         case passphrase = "Passphrase"
         var id: String { rawValue }
+    }
+
+    enum CopiedField: Equatable { case current, new }
+
+    /// The live current-password secret (nil if the credential is no longer
+    /// loaded). Copying it copies the real value even while it's masked on screen.
+    private var currentPassword: Secret? {
+        model.credential(item.credentialID)?.password
     }
 
     private var clearSeconds: Int {
@@ -165,35 +175,81 @@ private struct FixCard: View {
         }
     }
 
+    /// Uniform width for each trailing icon button so the show/hide and copy
+    /// columns line up across both rows (and don't shift when eye↔eye.slash).
+    private static let iconWidth: CGFloat = 22
+
     private var oldPasswordRow: some View {
-        HStack {
+        HStack(spacing: 4) {
             Text("Current").frame(width: 86, alignment: .leading).foregroundStyle(.secondary)
-            Text(revealOld ? (model.credential(item.credentialID)?.password.reveal() ?? "—") : item.oldPasswordMasked)
+            Text(revealOld ? (currentPassword?.reveal() ?? "—") : item.oldPasswordMasked)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
             Spacer()
-            Button { revealOld.toggle() } label: {
-                Image(systemName: revealOld ? "eye.slash" : "eye")
+            iconButton(systemName: revealOld ? "eye.slash" : "eye",
+                       help: revealOld ? "Hide" : "Reveal current password") {
+                revealOld.toggle()
             }
-            .buttonStyle(.borderless)
-            .help(revealOld ? "Hide" : "Reveal current password")
+            copyButton(copied: copiedField == .current,
+                       help: "Copy current password to paste into the site (clipboard auto-clears in ~\(clearSeconds)s)") {
+                if let pw = currentPassword {
+                    model.fixQueue.copySecret(pw)
+                    flashCopied(.current)
+                }
+            }
+            .disabled(currentPassword == nil)
         }
     }
 
     private var newPasswordRow: some View {
-        HStack {
+        HStack(spacing: 4) {
             Text("New").frame(width: 86, alignment: .leading).foregroundStyle(.secondary)
             Text(revealNew ? item.newPassword.reveal() : item.newPassword.masked())
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.primary)
                 .textSelection(.enabled)
             Spacer()
-            Button { revealNew.toggle() } label: {
-                Image(systemName: revealNew ? "eye.slash" : "eye")
-            }.buttonStyle(.borderless)
-            Button { regenerate() } label: {
-                Image(systemName: "arrow.clockwise")
-            }.buttonStyle(.borderless).help("Generate another")
+            iconButton(systemName: "arrow.clockwise", help: "Generate another") {
+                regenerate()
+            }
+            iconButton(systemName: revealNew ? "eye.slash" : "eye",
+                       help: revealNew ? "Hide" : "Reveal new password") {
+                revealNew.toggle()
+            }
+            copyButton(copied: copiedField == .new,
+                       help: "Copy new password to paste into the site (clipboard auto-clears in ~\(clearSeconds)s)") {
+                model.fixQueue.copySecret(item.newPassword)
+                flashCopied(.new)
+            }
+        }
+    }
+
+    /// A fixed-width borderless icon button, so trailing controls form aligned
+    /// columns across the Current/New rows.
+    private func iconButton(systemName: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName).frame(width: Self.iconWidth)
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+    }
+
+    /// A clipboard icon button that flips to a green checkmark right after a copy.
+    private func copyButton(copied: Bool, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .foregroundStyle(copied ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+                .frame(width: Self.iconWidth)
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+    }
+
+    private func flashCopied(_ field: CopiedField) {
+        copiedField = field
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            if copiedField == field { copiedField = nil }
         }
     }
 
