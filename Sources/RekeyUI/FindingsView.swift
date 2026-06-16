@@ -282,8 +282,14 @@ private struct CredentialRow: View {
     private var fixControl: some View {
         if model.isFixed(cred) {
             HStack(spacing: 8) {
-                Label("Fixed", systemImage: "checkmark.circle.fill")
-                    .font(.caption2.weight(.medium)).foregroundStyle(.green)
+                if model.fixMaySaveFailed(cred) {
+                    Label("May not have saved", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2.weight(.medium)).foregroundStyle(.orange)
+                        .help("Your latest import still shows the OLD password for this account — the change may not have saved to the browser. Reopen to redo it.")
+                } else {
+                    Label("Fixed", systemImage: "checkmark.circle.fill")
+                        .font(.caption2.weight(.medium)).foregroundStyle(.green)
+                }
                 Button("Reopen") { model.unmarkFixed(for: cred) }
                     .controlSize(.small)
                     .help("Not actually fixed? Mark it un-fixed so you can queue and redo it — e.g. the new password never got saved to the browser.")

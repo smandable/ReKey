@@ -37,6 +37,15 @@ public struct FixedCleanupPlan: Sendable {
     public var manualSites: [ManualCleanupSite]
 }
 
+/// Hashes captured when a fix is marked done, so a later re-import can tell
+/// whether the change actually saved — only hashes are kept, never a password,
+/// matching the rest of the persisted progress.
+private struct FixSaveRecord: Sendable {
+    let oldHash: String
+    let newHash: String
+    let source: String
+}
+
 /// App-wide coordinator. Owns imports, the audit, and the fix queue, and wires
 /// the concrete networking clients (HIBP, reset router) to the engines.
 ///
@@ -131,6 +140,15 @@ public final class AppModel {
     private let completedDefaultsKey = "rekey.completedKeys"
     private let skippedDefaultsKey = "rekey.skippedKeys"
     private let ignoredDefaultsKey = "rekey.ignoredKeys"
+    private let saveRecordsDefaultsKey = "rekey.fixSaveRecords"
+
+    /// Old/new password hashes per fixed account (progressKey), so a later import
+    /// can verify the change saved. Hashes only — no passwords. Persisted.
+    private var fixSaveRecords: [String: FixSaveRecord] = [:]
+    /// Fixed accounts whose most recent re-import of their source still shows the
+    /// OLD password (not the new) — the change likely didn't save. Derived on
+    /// import; not persisted.
+    public private(set) var unsavedFixKeys: Set<String> = []
 
     /// Browser-independent identity for "this account is fixed" — changing the
     /// password on the site resolves it regardless of which browser saved it.
@@ -219,6 +237,16 @@ public final class AppModel {
         let key = Self.progressKey(for: cred)
         completedKeys.insert(key)
         skippedKeys.remove(key)
+        // Remember the old and new password hashes (not the passwords) so the next
+        // re-import of this source can confirm the change actually saved. Don't
+        // evaluate now: the current import predates the fix and still shows the old
+        // password — it's checked when the source is next re-imported.
+        fixSaveRecords[key] = FixSaveRecord(
+            oldHash: cred.password.sha256().base64EncodedString(),
+            newHash: item.newPassword.sha256().base64EncodedString(),
+            source: cred.source.rawValue
+        )
+        unsavedFixKeys.remove(key)
         saveProgress()
     }
 
@@ -235,20 +263,36 @@ public final class AppModel {
     /// persisted completed key so the finding returns to the active list with an
     /// "Add to queue" action. Does not touch any saved password.
     public func unmarkFixed(for credential: ImportedCredential) {
-        completedKeys.remove(Self.progressKey(for: credential))
+        let key = Self.progressKey(for: credential)
+        completedKeys.remove(key)
+        fixSaveRecords.removeValue(forKey: key)
+        unsavedFixKeys.remove(key)
         saveProgress()
+    }
+
+    /// Whether a fixed account's latest import still shows the OLD password — the
+    /// change may not have saved. Surfaced as a warning (with Reopen) in Findings.
+    public func fixMaySaveFailed(_ credential: ImportedCredential) -> Bool {
+        unsavedFixKeys.contains(Self.progressKey(for: credential))
     }
 
     private func saveProgress() {
         UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
         UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)
         UserDefaults.standard.set(Array(ignoredKeys), forKey: ignoredDefaultsKey)
+        // [progressKey: [oldHash, newHash, source]] — plist-native, hashes only.
+        UserDefaults.standard.set(fixSaveRecords.mapValues { [$0.oldHash, $0.newHash, $0.source] },
+                                  forKey: saveRecordsDefaultsKey)
     }
 
     private func loadProgress() {
         completedKeys = Set(UserDefaults.standard.stringArray(forKey: completedDefaultsKey) ?? [])
         skippedKeys = Set(UserDefaults.standard.stringArray(forKey: skippedDefaultsKey) ?? [])
         ignoredKeys = Set(UserDefaults.standard.stringArray(forKey: ignoredDefaultsKey) ?? [])
+        let raw = UserDefaults.standard.dictionary(forKey: saveRecordsDefaultsKey) as? [String: [String]] ?? [:]
+        fixSaveRecords = raw.compactMapValues {
+            $0.count == 3 ? FixSaveRecord(oldHash: $0[0], newHash: $0[1], source: $0[2]) : nil
+        }
     }
 
     // MARK: - Change-page browser
@@ -328,6 +372,30 @@ public final class AppModel {
         credentialIndex = Dictionary(allCredentials.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
+    /// After importing `source`, re-check that source's fixed accounts against the
+    /// freshly imported passwords. The strong signal is the negative: the account
+    /// still hashes to the OLD password and the new one is nowhere in this source —
+    /// the change likely didn't save. A site can mangle a generated password, so
+    /// "new isn't present" alone never triggers; "still old" does. Only this
+    /// source's records are touched, so importing a *different* browser can't
+    /// false-flag fixes whose store wasn't re-exported.
+    private func verifyFixes(against source: BrowserSource) {
+        for (key, record) in fixSaveRecords where record.source == source.rawValue {
+            let hashes = Set(
+                allCredentials
+                    .filter { $0.source == source && Self.progressKey(for: $0) == key }
+                    .map { $0.password.sha256().base64EncodedString() }
+            )
+            if hashes.isEmpty || hashes.contains(record.newHash) {
+                unsavedFixKeys.remove(key)        // not in this import, or new password saved
+            } else if hashes.contains(record.oldHash) {
+                unsavedFixKeys.insert(key)        // only the old password remains — likely didn't save
+            } else {
+                unsavedFixKeys.remove(key)        // changed to something else (out-of-band) — neutral
+            }
+        }
+    }
+
     // MARK: - Import
 
     /// Import a file selected via the file picker (security-scoped URL).
@@ -348,6 +416,7 @@ public final class AppModel {
             let result = try importer.import(data: data, chromiumSource: chromiumSource)
             files.append(ImportedFile(url: url, displayName: displayName, result: result))
             reindexCredentials()
+            verifyFixes(against: result.source)
             // A fresh import invalidates the previous audit.
             report = nil
         } catch {
