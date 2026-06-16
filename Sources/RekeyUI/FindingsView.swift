@@ -242,7 +242,7 @@ private struct CredentialRow: View {
                     if isStray {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Likely a leftover save — there's no account behind a blank username, so **Fixing won't help.** Instead:")
-                            Text("1. \(StaleLoginGuidance.manualSteps(for: cred.source, domain: cred.registrableDomain))")
+                            Text("1. \(StaleLoginGuidance.manualSteps(for: cred.source, domain: cred.site))")
                             Text("2. Then click **Ignore** here to clear it.")
                         }
                         .font(.caption).foregroundStyle(.secondary)

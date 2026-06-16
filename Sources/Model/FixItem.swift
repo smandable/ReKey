@@ -19,7 +19,11 @@ public struct FixItem: Identifiable, Sendable, Equatable {
     public let id: UUID
     /// The credential this fix targets.
     public let credentialID: UUID
+    /// eTLD+1, for cleanup grouping / sibling analysis.
     public let registrableDomain: String
+    /// The actual host the login lives on (e.g. `amerihome.loanadministration.com`).
+    /// Empty falls back to `registrableDomain` via `site`.
+    public let host: String
     public let username: String
     /// Masked old password for display (never the real value).
     public let oldPasswordMasked: String
@@ -34,6 +38,7 @@ public struct FixItem: Identifiable, Sendable, Equatable {
         id: UUID = UUID(),
         credentialID: UUID,
         registrableDomain: String,
+        host: String = "",
         username: String,
         oldPasswordMasked: String,
         newPassword: Secret,
@@ -43,10 +48,15 @@ public struct FixItem: Identifiable, Sendable, Equatable {
         self.id = id
         self.credentialID = credentialID
         self.registrableDomain = registrableDomain
+        self.host = host
         self.username = username
         self.oldPasswordMasked = oldPasswordMasked
         self.newPassword = newPassword
         self.changeURL = changeURL
         self.status = status
     }
+
+    /// The site the user acts on: the full host when known, else the registrable
+    /// domain. What the card displays, opens, and cleans.
+    public var site: String { host.isEmpty ? registrableDomain : host }
 }

@@ -154,6 +154,25 @@ struct FixQueueTests {
         #expect(queue.items.first?.changeURL?.absoluteString == "https://acme.example/.well-known/change-password")
     }
 
+    @Test("Enqueue targets the real host (subdomain), not the collapsed eTLD+1")
+    func enqueueUsesHostNotRegistrableDomain() async throws {
+        let (queue, _, _) = try makeQueue()
+        let cred = ImportedCredential(
+            source: .arc, title: nil,
+            rawURL: "https://amerihome.loanadministration.com/login",
+            registrableDomain: "loanadministration.com",
+            host: "amerihome.loanadministration.com",
+            username: "me", password: Secret("x"), notes: nil, hasTOTP: false
+        )
+        let id = try #require(try queue.appendPending(credential: cred))
+        let item = try #require(queue.items.first { $0.id == id })
+        // Display + cleanup use the real host; eTLD+1 stays for grouping.
+        #expect(item.site == "amerihome.loanadministration.com")
+        #expect(item.registrableDomain == "loanadministration.com")
+        // The change page opens the actual subdomain, not loanadministration.com.
+        #expect(item.changeURL?.absoluteString == "https://amerihome.loanadministration.com/")
+    }
+
     @Test("appendPending shows the item instantly; resolveChangeURL upgrades it later")
     func appendThenResolve() async throws {
         let (queue, _, _) = try makeQueue()                 // stub resolves to well-known

@@ -129,12 +129,14 @@ public struct CSVImporter: Sendable {
             let hasTOTP = !(otp ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
             let registrableDomain = canonicalizer.registrableDomain(fromRawURL: rawURL) ?? rawURL
+            let host = canonicalizer.host(fromRawURL: rawURL) ?? ""
 
             credentials.append(ImportedCredential(
                 source: source,
                 title: title,
                 rawURL: rawURL,
                 registrableDomain: registrableDomain,
+                host: host,
                 username: username,
                 password: Secret(password),
                 notes: notes,

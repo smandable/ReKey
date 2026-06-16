@@ -337,16 +337,16 @@ private struct FixCard: View {
         let source = model.credential(item.credentialID)?.source ?? .unknown
         DisclosureGroup(isExpanded: $showCleanup) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("If your browser saved a **new** entry instead of updating, an old login for **\(item.registrableDomain)** with the previous password may still be saved. Rekey never deletes it for you — here's how:")
+                Text("If your browser saved a **new** entry instead of updating, an old login for **\(item.site)** with the previous password may still be saved. Rekey never deletes it for you — here's how:")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Label(StaleLoginGuidance.manualSteps(for: source, domain: item.registrableDomain),
+                Label(StaleLoginGuidance.manualSteps(for: source, domain: item.site),
                       systemImage: "hand.point.right")
                     .font(.caption)
 
                 if let command = StaleLoginGuidance.cliCommand(for: source,
-                                                               domain: item.registrableDomain,
+                                                               domain: item.site,
                                                                username: item.username) {
                     Text("Or copy this and run it yourself in **Terminal** (Rekey never runs it). As written it just previews; to actually delete, quit \(source.displayName), then re-run it with `--confirm` added:")
                         .font(.caption2).foregroundStyle(.secondary)
@@ -388,7 +388,7 @@ private struct FixCard: View {
 
     private var headerRow: some View {
         HStack {
-            Text(item.registrableDomain).font(.headline)
+            Text(item.site).font(.headline)
             Spacer()
             statusBadge
         }

@@ -548,7 +548,7 @@ public final class AppModel {
     /// fixed Firefox logins on one site collapse to a single command.
     public func fixedCleanupPlan() -> FixedCleanupPlan {
         Self.cleanupPlan(forDone: fixQueue.items, source: { credential($0)?.source ?? .unknown }) { source, domain in
-            allCredentials.filter { $0.source == source && $0.registrableDomain == domain }.count
+            allCredentials.filter { $0.source == source && $0.site == domain }.count
         }
     }
 
@@ -594,7 +594,7 @@ public final class AppModel {
         // How many logins on each (source, site) the user actually fixed.
         var fixedPerSite: [String: Int] = [:]
         for item in done {
-            fixedPerSite["\(source(item.credentialID).rawValue)|\(item.registrableDomain)", default: 0] += 1
+            fixedPerSite["\(source(item.credentialID).rawValue)|\(item.site)", default: 0] += 1
         }
 
         var safe: [String] = []; var seenCmd = Set<String>()
@@ -602,16 +602,16 @@ public final class AppModel {
         for item in done {
             let src = source(item.credentialID)
             guard let cmd = StaleLoginGuidance.cliCommand(
-                for: src, domain: item.registrableDomain, username: item.username
+                for: src, domain: item.site, username: item.username
             ) else { continue }
-            let key = "\(src.rawValue)|\(item.registrableDomain)"
+            let key = "\(src.rawValue)|\(item.site)"
             let isSiteLevel = !cmd.contains("--username")
             // Risky only if a site-level delete would remove logins the user did
             // NOT fix (total on the site exceeds the count fixed there).
-            if isSiteLevel, siblingCount(src, item.registrableDomain) > (fixedPerSite[key] ?? 0) {
+            if isSiteLevel, siblingCount(src, item.site) > (fixedPerSite[key] ?? 0) {
                 if seenSite.insert(key).inserted {
-                    manual.append(ManualCleanupSite(domain: item.registrableDomain, browser: src,
-                                                    loginCount: siblingCount(src, item.registrableDomain)))
+                    manual.append(ManualCleanupSite(domain: item.site, browser: src,
+                                                    loginCount: siblingCount(src, item.site)))
                 }
             } else if seenCmd.insert(cmd).inserted {
                 safe.append(cmd)

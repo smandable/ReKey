@@ -17,6 +17,10 @@ public struct ImportedCredential: Identifiable, Sendable, Equatable {
     /// Used for grouping and reuse analysis (e.g. `accounts.google.com` ->
     /// `google.com`). Empty string only if the URL had no resolvable host.
     public let registrableDomain: String
+    /// The full host as exported (lowercased, `www.` stripped), e.g.
+    /// `amerihome.loanadministration.com` — the *actual* site the login lives on,
+    /// not the collapsed domain. Empty when no host could be parsed.
+    public let host: String
     public let username: String
     public let password: Secret
     public let notes: String?
@@ -30,6 +34,7 @@ public struct ImportedCredential: Identifiable, Sendable, Equatable {
         title: String?,
         rawURL: String,
         registrableDomain: String,
+        host: String = "",
         username: String,
         password: Secret,
         notes: String?,
@@ -40,9 +45,15 @@ public struct ImportedCredential: Identifiable, Sendable, Equatable {
         self.title = title
         self.rawURL = rawURL
         self.registrableDomain = registrableDomain
+        self.host = host
         self.username = username
         self.password = password
         self.notes = notes
         self.hasTOTP = hasTOTP
     }
+
+    /// The site the user actually logs in to: the full host when known, else the
+    /// registrable domain. This is what the fix queue shows, opens, and cleans —
+    /// `registrableDomain` stays for reuse grouping (eTLD+1).
+    public var site: String { host.isEmpty ? registrableDomain : host }
 }

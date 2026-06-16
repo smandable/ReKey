@@ -123,10 +123,11 @@ public final class FixQueue {
         let item = FixItem(
             credentialID: credential.id,
             registrableDomain: credential.registrableDomain,
+            host: credential.host,
             username: credential.username,
             oldPasswordMasked: credential.password.masked(),
             newPassword: newPassword,
-            changeURL: URL(string: "https://\(credential.registrableDomain)/"),
+            changeURL: URL(string: "https://\(credential.site)/"),
             status: .pending
         )
         items.append(item)
@@ -140,8 +141,8 @@ public final class FixQueue {
     /// item still exists after the await.
     public func resolveChangeURL(itemID: UUID) async {
         guard let i = index(of: itemID) else { return }
-        let domain = items[i].registrableDomain
-        let resolution = await router.resolveChangeURL(for: domain)
+        let site = items[i].site
+        let resolution = await router.resolveChangeURL(for: site)
         guard let j = index(of: itemID) else { return }
         items[j].changeURL = resolution.url
         resolutionSources[itemID] = resolution.source
