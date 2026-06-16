@@ -10,9 +10,8 @@ struct FindingsView: View {
     @State private var onlyIssues = true
     @State private var sortByPriority = true
     @State private var showIgnored = false
-    /// Passwords are shown by default in the audit list; this persisted setting
-    /// hides them for shoulder-surfing situations.
-    @AppStorage("rekey.hidePasswordsInFindings") private var hidePasswords = false
+    /// Shared with the Fix Queue and the Settings screen; passwords shown by default.
+    @AppStorage(Prefs.showPasswords) private var showPasswords = true
 
     var body: some View {
         Group {
@@ -61,10 +60,12 @@ struct FindingsView: View {
     private func summary(_ report: AuditReport) -> some View {
         let progress = model.fixProgress
         let ignored = ignoredCount(report)
+        let crossEco = crossEcosystemAccounts(report)
         return HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Findings").font(.largeTitle.bold())
                 Text("\(report.findingsByCredential.count) reused/compromised · \(report.weak.count) weak · across \(report.flaggedDomainGroups.count) sites"
+                     + (crossEco > 0 ? " · \(crossEco) in Apple + a browser" : "")
                      + (ignored > 0 ? " · \(ignored) ignored" : "") + ".")
                     .foregroundStyle(.secondary)
                 if progress.total > 0 {
@@ -86,7 +87,7 @@ struct FindingsView: View {
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 150)
                 Toggle("Only issues", isOn: $onlyIssues).toggleStyle(.switch)
-                Toggle("Hide passwords", isOn: $hidePasswords).toggleStyle(.switch)
+                Toggle("Show passwords", isOn: $showPasswords).toggleStyle(.switch)
                 if ignored > 0 {
                     Toggle("Show ignored", isOn: $showIgnored).toggleStyle(.switch)
                 }
@@ -105,7 +106,7 @@ struct FindingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(group.registrableDomain).font(.title3.weight(.semibold))
                 ForEach(creds) { cred in
-                    CredentialRow(model: model, cred: cred, report: report, revealPassword: !hidePasswords)
+                    CredentialRow(model: model, cred: cred, report: report, revealPassword: showPasswords)
                     if cred.id != creds.last?.id { Divider() }
                 }
             }
@@ -114,7 +115,18 @@ struct FindingsView: View {
     }
 
     private func isFlagged(_ cred: ImportedCredential, _ report: AuditReport) -> Bool {
-        report.findingsByCredential[cred.id] != nil || report.weak.contains(cred.id)
+        report.findingsByCredential[cred.id] != nil
+            || report.weak.contains(cred.id)
+            || report.crossEcosystemDuplicates.contains(cred.id)
+            || report.strayBlankUsername.contains(cred.id)
+    }
+    /// Distinct accounts saved in both an Apple and a non-Apple store.
+    private func crossEcosystemAccounts(_ report: AuditReport) -> Int {
+        var keys = Set<String>()
+        for cred in report.credentials where report.crossEcosystemDuplicates.contains(cred.id) {
+            keys.insert("\(cred.registrableDomain)|\(cred.username)")
+        }
+        return keys.count
     }
     /// A domain still has an *active* (non-ignored) finding.
     private func hasActiveIssue(_ group: DomainGroup, _ report: AuditReport) -> Bool {
@@ -148,7 +160,9 @@ private struct CredentialRow: View {
     var body: some View {
         let finding = report.findingsByCredential[cred.id]
         let isWeak = report.weak.contains(cred.id)
-        let hasIssue = finding != nil || isWeak
+        let isCrossEcosystem = report.crossEcosystemDuplicates.contains(cred.id)
+        let isStray = report.strayBlankUsername.contains(cred.id)
+        let hasSecurityIssue = finding != nil || isWeak
         let ignored = model.isIgnored(cred)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -171,9 +185,9 @@ private struct CredentialRow: View {
                 }
             }
 
-            if hasIssue {
+            if hasSecurityIssue || isCrossEcosystem || isStray {
                 HStack(spacing: 6) {
-                    if ignored {
+                    if ignored && hasSecurityIssue {
                         PillBadge(icon: "bell.slash.fill", text: "Ignored", color: .gray)
                         Spacer()
                         Button("Un-ignore") { model.unignoreFinding(for: cred) }
@@ -185,23 +199,45 @@ private struct CredentialRow: View {
                         if isWeak {
                             PillBadge(icon: "exclamationmark.shield.fill", text: "Weak", color: .yellow)
                         }
+                        if isCrossEcosystem {
+                            PillBadge(icon: "iphone",
+                                      text: cred.source.isApple ? "Also in a browser" : "Also in Apple Passwords",
+                                      color: .orange)
+                        }
+                        if isStray {
+                            PillBadge(icon: "person.crop.circle.badge.questionmark", text: "Likely stray", color: .gray)
+                        }
                         Spacer()
-                        fixControl
-                        Button("Ignore") { model.ignoreFinding(for: cred) }
-                            .controlSize(.small)
-                            .help("Hide this finding — you've reviewed and accepted it. Bring it back with 'Show ignored'.")
+                        if hasSecurityIssue {
+                            fixControl
+                            Button("Ignore") { model.ignoreFinding(for: cred) }
+                                .controlSize(.small)
+                                .help("Hide this finding — you've reviewed and accepted it. Bring it back with 'Show ignored'.")
+                        }
                     }
                 }
-                if !ignored, let cluster = report.cluster(for: cred.id), cluster.isAcrossSites {
-                    let others = cluster.registrableDomains.filter { $0 != cred.registrableDomain }
-                    if !others.isEmpty {
-                        Text("Same password as: \(others.joined(separator: ", "))")
+                if !(ignored && hasSecurityIssue) {
+                    if isCrossEcosystem {
+                        Text("Saved in both Apple Passwords and a browser — these don't sync, so update both or your iPhone may keep autofilling the old password.")
                             .font(.caption).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if isStray {
+                        Text("No username, but this site also has a real login — likely a leftover save. Delete it directly in your browser rather than fixing it.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if hasSecurityIssue, let cluster = report.cluster(for: cred.id), cluster.isAcrossSites {
+                        let others = cluster.registrableDomains.filter { $0 != cred.registrableDomain }
+                        if !others.isEmpty {
+                            Text("Same password as: \(others.joined(separator: ", "))")
+                                .font(.caption).foregroundStyle(.orange)
+                        }
                     }
                 }
             }
         }
-        .opacity(ignored ? 0.65 : 1)
+        .opacity(ignored && hasSecurityIssue ? 0.65 : 1)
         .padding(.vertical, 2)
     }
 

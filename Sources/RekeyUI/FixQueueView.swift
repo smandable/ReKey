@@ -8,8 +8,10 @@ import PasswordGenerator
 /// change on the site. Nothing here edits a credential or writes to any store.
 struct FixQueueView: View {
     @Bindable var model: AppModel
-    @State private var cleanupConfirm = false
+    @State private var cleanupConfirm = true
     @State private var cleanupCopied = false
+    @State private var copiedLine: String?
+    @State private var showRunHelp = false
 
     var body: some View {
         ScrollView {
@@ -41,41 +43,120 @@ struct FixQueueView: View {
     /// multi-session cleanup can accumulate into a single file.
     @ViewBuilder
     private var cleanupSection: some View {
-        let commands = model.fixedCleanupCommands()
-        if !commands.isEmpty {
-            let script = CleanupPlanner.script(commands: commands, confirm: cleanupConfirm)
+        let runnable = model.fixedCleanupRunnableCommands()
+        let manualCount = model.fixedCleanupManualSiteCount()
+        if !runnable.isEmpty || manualCount > 0 {
+            let script = model.fixedCleanupScript(confirm: cleanupConfirm)
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Cleanup script — remove the old logins you've replaced", systemImage: "trash.slash")
                         .font(.headline)
-                    Text("One script to delete the stale saved logins for the \(commands.count) account(s) you've marked done, across every browser. Quit those browsers first — rekey-cleanup backs up each store before deleting and won't run while a browser is open.")
+                    Text("One script to delete the stale saved logins for the accounts you've marked done, across every browser. Quit those browsers first — rekey-cleanup backs up each store before deleting and won't run while a browser is open.")
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if manualCount > 0 {
+                        Label("\(manualCount) site(s) need manual removal — the entry you fixed has no username and the site has other logins, so a site delete would take them too. The script shows how to remove just the stray one by id (it isn't auto-deleted).", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Toggle("Include `--confirm` — actually delete (otherwise it only previews)", isOn: cleanupConfirmBinding)
                         .font(.caption)
-                    Text(script)
-                        .font(.system(.caption2, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                    scriptBlock(script)
                     HStack {
                         Button { copyCleanup(script) } label: {
-                            Label(cleanupCopied ? "Copied" : "Copy", systemImage: cleanupCopied ? "checkmark" : "doc.on.doc")
+                            Label(cleanupCopied ? "Copied" : "Copy all", systemImage: cleanupCopied ? "checkmark" : "doc.on.doc")
                         }
                         Button { saveCleanup(script) } label: {
                             Label("Save as new file…", systemImage: "square.and.arrow.down")
                         }
                         .help("Write the whole current script to a new .sh file you name — everything you've fixed this session.")
-                        Button { appendCleanup(commands) } label: {
+                        Button { appendCleanup(runnable) } label: {
                             Label("Add to existing file…", systemImage: "doc.badge.plus")
                         }
                         .help("Add these commands to a cleanup script you saved before (skipping any already in it), so fixes from several sessions accumulate in one file.")
                         Spacer()
                     }
+                    runHelp
                 }
                 .padding(6)
             }
+        }
+    }
+
+    /// The script, one line per row, with a copy button beside each runnable
+    /// `rekey-cleanup` command (comments/blank lines have none).
+    private func scriptBlock(_ script: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            ForEach(Array(script.split(separator: "\n", omittingEmptySubsequences: false).enumerated()), id: \.offset) { _, raw in
+                let line = String(raw)
+                HStack(alignment: .top, spacing: 6) {
+                    Text(line.isEmpty ? " " : line)
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if line.hasPrefix("rekey-cleanup") {
+                        Button { copyScriptLine(line) } label: {
+                            Image(systemName: copiedLine == line ? "checkmark" : "doc.on.doc")
+                                .foregroundStyle(copiedLine == line ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+                        }
+                        .buttonStyle(.borderless).controlSize(.small)
+                        .help("Copy this command")
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// Collapsible instructions for actually running the script (the app can't —
+    /// rekey-cleanup is a separate, sandbox-free tool you run in Terminal).
+    private var runHelp: some View {
+        DisclosureGroup(isExpanded: $showRunHelp) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Rekey can't run this itself — deleting browser stores is exactly what the sandboxed app must not do, so `rekey-cleanup` is a separate tool you run in Terminal.")
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("1. Install the tool once, from the Rekey project folder:")
+                codeLine("swift build -c release --product rekey-cleanup")
+                codeLine("sudo cp .build/release/rekey-cleanup /usr/local/bin/")
+                Text("2. Quit the browser(s) the script touches.")
+                Text("3. Run a saved script, or paste a single copied line:")
+                codeLine("sh ~/Downloads/rekey-cleanup.sh")
+                Text("Not installing? Run a line from the Rekey folder with `swift run` instead, e.g. `swift run rekey-cleanup delete --browser arc --site bjs.com --confirm`.")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            .padding(.top, 4)
+        } label: {
+            Label("How to run this", systemImage: "terminal").font(.caption.weight(.medium))
+        }
+    }
+
+    private func codeLine(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(text)
+                .font(.system(.caption2, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { copyScriptLine(text) } label: {
+                Image(systemName: copiedLine == text ? "checkmark" : "doc.on.doc")
+                    .foregroundStyle(copiedLine == text ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+            }
+            .buttonStyle(.borderless).controlSize(.small)
+            .help("Copy")
+        }
+        .padding(6)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func copyScriptLine(_ line: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(line, forType: .string)
+        copiedLine = line
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            if copiedLine == line { copiedLine = nil }
         }
     }
 
@@ -142,6 +223,11 @@ struct FixQueueView: View {
             }
             .font(.callout)
             .padding(.top, 2)
+
+            Label("On iPhone or iPad? After changing a password, make sure the new value lands in the store your phone autofills from — iCloud Keychain (Apple) and Chrome/Google don't sync to each other.", systemImage: "iphone")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
         }
     }
 
@@ -155,15 +241,28 @@ private struct FixCard: View {
     @Bindable var model: AppModel
     let item: FixItem
 
-    @State private var revealOld = true
-    @State private var revealNew = true
-    @State private var style: Style = .strong
-    @State private var length: Double = 20
-    @State private var avoidAmbiguous = true
+    @State private var revealOld: Bool
+    @State private var revealNew: Bool
+    @State private var style: Style
+    @State private var length: Double
+    @State private var avoidAmbiguous: Bool
     @State private var showCleanup = false
     @State private var copiedCommand = false
     /// Which password field was just copied, for a transient checkmark.
     @State private var copiedField: CopiedField?
+
+    /// Seed the per-card controls from the saved Settings defaults.
+    init(model: AppModel, item: FixItem) {
+        self.model = model
+        self.item = item
+        let show = Prefs.showPasswordsValue()
+        _revealOld = State(initialValue: show)
+        _revealNew = State(initialValue: show)
+        let g = Prefs.currentGeneration()
+        _style = State(initialValue: Style(rawValue: g.style) ?? .strong)
+        _length = State(initialValue: Double(g.length))
+        _avoidAmbiguous = State(initialValue: g.avoidLookAlikes)
+    }
 
     enum Style: String, CaseIterable, Identifiable {
         case strong = "Strong"
@@ -178,6 +277,24 @@ private struct FixCard: View {
     /// loaded). Copying it copies the real value even while it's masked on screen.
     private var currentPassword: Secret? {
         model.credential(item.credentialID)?.password
+    }
+
+    /// This account is also saved in the other ecosystem (Apple ↔ browser).
+    private var isCrossEcosystem: Bool {
+        model.isCrossEcosystem(item.credentialID)
+    }
+
+    /// Reminder that the matching copy in the other (non-syncing) store also needs
+    /// updating — the thing that bites on iPhone/iPad.
+    @ViewBuilder
+    private var crossEcosystemNote: some View {
+        let other = (model.credential(item.credentialID)?.source.isApple ?? false) ? "a browser" : "Apple Passwords"
+        Label("This account is also saved in \(other) — the stores don't sync, so after you change it here, update the copy in \(other) too, or your iPhone may keep autofilling the old password.", systemImage: "iphone")
+            .font(.caption).foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var clearSeconds: Int {
@@ -196,6 +313,9 @@ private struct FixCard: View {
                 changeURLRow
                 Divider()
                 actionRow
+                if isCrossEcosystem {
+                    crossEcosystemNote
+                }
                 if item.status == .done {
                     staleLoginGuidance
                 }
@@ -397,7 +517,7 @@ private struct FixCard: View {
                     .onChange(of: length) { _, _ in regenerate() }
                 Toggle("No look-alikes", isOn: $avoidAmbiguous)
                     .onChange(of: avoidAmbiguous) { _, _ in regenerate() }
-                    .help("Exclude easily-confused characters: I l 1 O 0")
+                HelpHint("\"No look-alikes\" excludes the characters that are easy to confuse when reading or typing a password by hand — capital I, lowercase l, the digit 1, capital O, and zero 0.")
             }
             Spacer()
         }

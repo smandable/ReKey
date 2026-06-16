@@ -38,6 +38,7 @@ public struct RootView: View {
         case .findings: FindingsView(model: model)
         case .fixing: FixQueueView(model: model)
         case .cleanup: CleanupView(model: model)
+        case .settings: SettingsView()
         }
     }
 
@@ -47,6 +48,7 @@ public struct RootView: View {
         case .findings: return model.report?.findingsByCredential.count ?? 0
         case .fixing: return model.fixQueue.items.filter { $0.status == .pending }.count
         case .cleanup: return 0
+        case .settings: return 0
         }
     }
 }

@@ -20,6 +20,23 @@ public struct ImportedFile: Identifiable, Sendable {
     public var sourceDeleted: Bool = false
 }
 
+/// A site that a one-line `--site` delete can't safely clean: the entry the user
+/// fixed has no username to target and the site has other saved logins that the
+/// delete would also remove. Surfaced so the cleanup script can give id-based
+/// instructions instead.
+public struct ManualCleanupSite: Sendable {
+    public let domain: String
+    public let browser: BrowserSource
+    public let loginCount: Int
+}
+
+/// The fixed-login cleanup split into commands safe to run and sites needing
+/// manual, id-based removal.
+public struct FixedCleanupPlan: Sendable {
+    public var safeCommands: [String]
+    public var manualSites: [ManualCleanupSite]
+}
+
 /// App-wide coordinator. Owns imports, the audit, and the fix queue, and wires
 /// the concrete networking clients (HIBP, reset router) to the engines.
 ///
@@ -33,6 +50,7 @@ public final class AppModel {
         case findings = "Findings"
         case fixing = "Fix Queue"
         case cleanup = "Clean Up"
+        case settings = "Settings"
         public var id: String { rawValue }
         public var systemImage: String {
             switch self {
@@ -40,6 +58,7 @@ public final class AppModel {
             case .findings: return "list.bullet.rectangle"
             case .fixing: return "checkmark.shield"
             case .cleanup: return "trash.slash"
+            case .settings: return "gearshape"
             }
         }
     }
@@ -278,6 +297,13 @@ public final class AppModel {
         credentialIndex[id]
     }
 
+    /// Whether this credential's account is saved in both an Apple and a
+    /// non-Apple store (a cross-ecosystem duplicate from the last audit) — copies
+    /// that don't sync to each other, notably on iPhone/iPad.
+    public func isCrossEcosystem(_ credentialID: UUID) -> Bool {
+        report?.crossEcosystemDuplicates.contains(credentialID) ?? false
+    }
+
     private func reindexCredentials() {
         allCredentials = files.flatMap(\.result.credentials)
         credentialIndex = Dictionary(allCredentials.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -487,7 +513,21 @@ public final class AppModel {
     // MARK: - Fix queue bridge
 
     public func enqueueFix(for credential: ImportedCredential) async {
-        _ = try? await fixQueue.enqueue(credential: credential)
+        if let id = (try? await fixQueue.enqueue(credential: credential)) ?? nil {
+            applyDefaultGeneration(to: id)
+        }
+    }
+
+    /// Re-generate a just-enqueued item with the user's saved new-password
+    /// defaults (type / length / look-alikes from Settings).
+    private func applyDefaultGeneration(to itemID: UUID) {
+        let prefs = Prefs.currentGeneration()
+        let g = Prefs.generation(style: prefs.style, length: prefs.length, avoidLookAlikes: prefs.avoidLookAlikes)
+        if g.passphrase {
+            try? fixQueue.regeneratePassphrase(itemID: itemID)
+        } else {
+            try? fixQueue.regenerate(itemID: itemID, policy: g.policy)
+        }
     }
 
     // MARK: - Aggregated cleanup script (across all fixed logins)
@@ -499,35 +539,86 @@ public final class AppModel {
     /// Sources the tool can't clean (e.g. Apple Passwords) are skipped. Firefox
     /// commands are site-level because its usernames are encrypted, so several
     /// fixed Firefox logins on one site collapse to a single command.
-    public func fixedCleanupCommands() -> [String] {
-        Self.cleanupCommands(forDone: fixQueue.items) { credential($0)?.source ?? .unknown }
-    }
-
-    /// Pure core of `fixedCleanupCommands()` (testable without the fix queue's
-    /// networked enqueue): deduped cleanup commands for the done items, given a
-    /// credential-id → browser-source lookup. Order follows the items.
-    static func cleanupCommands(forDone items: [FixItem], source: (UUID) -> BrowserSource) -> [String] {
-        var seen = Set<String>()
-        var out: [String] = []
-        for item in items where item.status == .done {
-            guard let cmd = StaleLoginGuidance.cliCommand(
-                for: source(item.credentialID), domain: item.registrableDomain, username: item.username
-            ) else { continue }
-            if seen.insert(cmd).inserted { out.append(cmd) }
+    public func fixedCleanupPlan() -> FixedCleanupPlan {
+        Self.cleanupPlan(forDone: fixQueue.items, source: { credential($0)?.source ?? .unknown }) { source, domain in
+            allCredentials.filter { $0.source == source && $0.registrableDomain == domain }.count
         }
-        return out
     }
 
-    /// The full cleanup script for every fixed login, or "" when nothing fixed is
-    /// cleanable. `confirm` adds `--confirm` (otherwise it only previews).
+    /// Safe-to-run delete commands for everything fixed (no `--confirm`).
+    public func fixedCleanupRunnableCommands() -> [String] { fixedCleanupPlan().safeCommands }
+
+    /// How many sites need manual id-based cleanup (site-level delete would hit
+    /// siblings) — for the UI warning.
+    public func fixedCleanupManualSiteCount() -> Int { fixedCleanupPlan().manualSites.count }
+
+    /// The full cleanup script: safe commands plus, for any site a `--site` delete
+    /// can't safely target, commented `list` → `delete --id` instructions instead
+    /// of a delete that would remove siblings.
     public func fixedCleanupScript(confirm: Bool) -> String {
-        CleanupPlanner.script(commands: fixedCleanupCommands(), confirm: confirm)
+        let plan = fixedCleanupPlan()
+        guard !plan.safeCommands.isEmpty || !plan.manualSites.isEmpty else { return "" }
+        var lines = plan.safeCommands.map { confirm ? $0 + " --confirm" : $0 }
+        if !plan.manualSites.isEmpty {
+            lines.append("")
+            lines.append("# ⚠︎ Manual cleanup — the entry you fixed here has no username and the site has")
+            lines.append("#    other saved logins, so a --site delete would remove them too. Delete just the")
+            lines.append("#    stray entry by id:")
+            for site in plan.manualSites {
+                let cli = site.browser.cleanupCLIName ?? site.browser.rawValue
+                lines.append("#    \(site.domain) (\(site.browser.displayName), \(site.loginCount) logins):")
+                lines.append("#      rekey-cleanup list --browser \(cli) --site \(site.domain)")
+                lines.append("#      rekey-cleanup delete --browser \(cli) --id <id-of-the-blank-username-row> --confirm")
+            }
+        }
+        return CleanupPlanner.script(lines: lines, confirm: confirm)
+    }
+
+    /// Pure core of the cleanup plan (testable without the networked enqueue):
+    /// classifies each done item's delete as safe or, for a site-level delete that
+    /// would also hit un-fixed siblings, a manual id-based step. `siblingCount` is
+    /// the total saved logins for a (browser, site).
+    static func cleanupPlan(
+        forDone items: [FixItem],
+        source: (UUID) -> BrowserSource,
+        siblingCount: (BrowserSource, String) -> Int
+    ) -> FixedCleanupPlan {
+        let done = items.filter { $0.status == .done }
+        // How many logins on each (source, site) the user actually fixed.
+        var fixedPerSite: [String: Int] = [:]
+        for item in done {
+            fixedPerSite["\(source(item.credentialID).rawValue)|\(item.registrableDomain)", default: 0] += 1
+        }
+
+        var safe: [String] = []; var seenCmd = Set<String>()
+        var manual: [ManualCleanupSite] = []; var seenSite = Set<String>()
+        for item in done {
+            let src = source(item.credentialID)
+            guard let cmd = StaleLoginGuidance.cliCommand(
+                for: src, domain: item.registrableDomain, username: item.username
+            ) else { continue }
+            let key = "\(src.rawValue)|\(item.registrableDomain)"
+            let isSiteLevel = !cmd.contains("--username")
+            // Risky only if a site-level delete would remove logins the user did
+            // NOT fix (total on the site exceeds the count fixed there).
+            if isSiteLevel, siblingCount(src, item.registrableDomain) > (fixedPerSite[key] ?? 0) {
+                if seenSite.insert(key).inserted {
+                    manual.append(ManualCleanupSite(domain: item.registrableDomain, browser: src,
+                                                    loginCount: siblingCount(src, item.registrableDomain)))
+                }
+            } else if seenCmd.insert(cmd).inserted {
+                safe.append(cmd)
+            }
+        }
+        return FixedCleanupPlan(safeCommands: safe, manualSites: manual)
     }
 
     public func enqueueAllFlagged() async {
         guard let report else { return }
         for cred in allCredentials where report.findingsByCredential[cred.id] != nil && !isFixed(cred) {
-            _ = try? await fixQueue.enqueue(credential: cred)
+            if let id = (try? await fixQueue.enqueue(credential: cred)) ?? nil {
+                applyDefaultGeneration(to: id)
+            }
         }
         section = .fixing
     }

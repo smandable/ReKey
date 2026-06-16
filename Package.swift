@@ -70,6 +70,6 @@ let package = Package(
         .testTarget(name: "ResetTests", dependencies: ["ResetRouter"]),
         .testTarget(name: "FixQueueTests", dependencies: ["FixQueue", "Model", "PasswordGenerator", "ResetRouter"]),
         .testTarget(name: "BrowserStoreTests", dependencies: ["BrowserStore"]),
-        .testTarget(name: "RekeyUITests", dependencies: ["RekeyUI", "Model"]),
+        .testTarget(name: "RekeyUITests", dependencies: ["RekeyUI", "Model", "PasswordGenerator"]),
     ]
 )

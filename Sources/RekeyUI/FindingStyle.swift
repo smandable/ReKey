@@ -2,6 +2,17 @@ import SwiftUI
 import Model
 import ResetRouter
 
+/// A small "?" that reveals an explanation on hover (the system tooltip).
+struct HelpHint: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Image(systemName: "questionmark.circle")
+            .foregroundStyle(.secondary)
+            .help(text)
+    }
+}
+
 /// One pill badge: an optional SF Symbol plus text in a tinted capsule. The
 /// single source of the badge styling used across findings, sources, and reset.
 struct PillBadge: View {

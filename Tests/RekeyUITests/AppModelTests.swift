@@ -1,7 +1,28 @@
 import Testing
 import Foundation
 import Model
+import PasswordGenerator
 @testable import RekeyUI
+
+@Suite("New-password generation defaults")
+struct GenerationDefaultsTests {
+    @Test("Style maps to a passphrase or the right policy")
+    func mapping() {
+        let strong = Prefs.generation(style: "Strong", length: 24, avoidLookAlikes: true)
+        #expect(strong.passphrase == false)
+        #expect(strong.policy.length == 24)
+        #expect(strong.policy.avoidAmbiguous == true)
+        #expect(strong.policy.lettersAndDigitsOnly == false)
+
+        let ld = Prefs.generation(style: "Letters + digits", length: 16, avoidLookAlikes: false)
+        #expect(ld.passphrase == false)
+        #expect(ld.policy.lettersAndDigitsOnly == true)
+        #expect(ld.policy.useSymbols == false)
+        #expect(ld.policy.length == 16)
+
+        #expect(Prefs.generation(style: "Passphrase", length: 20, avoidLookAlikes: true).passphrase == true)
+    }
+}
 
 @MainActor
 @Suite("Fixed-login cleanup commands")
@@ -11,11 +32,11 @@ struct FixedCleanupCommandsTests {
                 oldPasswordMasked: "••••", newPassword: Secret("x"), status: status)
     }
 
-    @Test("Per-username for Chromium, one site-level line for Firefox; Apple + non-done excluded")
+    @Test("Per-username for Chromium, one site-level line for Firefox when all siblings fixed; Apple + non-done excluded")
     func aggregatesAndDedupes() {
         // Two Chase logins fixed in Chrome (distinct usernames), two more in
-        // Firefox (collapse to one site-level delete), one Apple (no command),
-        // and a still-pending item that must be ignored.
+        // Firefox (both fixed → collapse to one safe site-level delete), one
+        // Apple (no command), and a still-pending item that must be ignored.
         let chrome1 = item("chase.com", "smandable1")
         let chrome2 = item("chase.com", "smandable2")
         let ff1 = item("chase.com", "u1")
@@ -28,15 +49,37 @@ struct FixedCleanupCommandsTests {
             ff1.credentialID: .firefox, ff2.credentialID: .firefox,
             apple.credentialID: .applePasswords, pending.credentialID: .chrome,
         ]
-        let cmds = AppModel.cleanupCommands(forDone: [chrome1, chrome2, ff1, ff2, apple, pending]) {
-            source[$0] ?? .unknown
+        // Total saved logins per (browser, site): both chrome chase fixed, both
+        // firefox chase fixed → no un-fixed siblings, so all are safe.
+        let siblings: [String: Int] = [
+            "chrome|chase.com": 2, "firefox|chase.com": 2, "applePasswords|icloud.com": 1, "chrome|x.com": 1,
+        ]
+        let plan = AppModel.cleanupPlan(forDone: [chrome1, chrome2, ff1, ff2, apple, pending],
+                                        source: { source[$0] ?? .unknown }) { src, dom in
+            siblings["\(src.rawValue)|\(dom)"] ?? 0
         }
 
-        #expect(cmds == [
+        #expect(plan.safeCommands == [
             "rekey-cleanup delete --browser chrome --site chase.com --username smandable1",
             "rekey-cleanup delete --browser chrome --site chase.com --username smandable2",
             "rekey-cleanup delete --browser firefox --site chase.com",
         ])
+        #expect(plan.manualSites.isEmpty)
+    }
+
+    @Test("A blank-username site-level delete is held back when an un-fixed login shares the site")
+    func blankUsernameWithSiblingIsManual() {
+        // One blank-username Arc entry fixed; bestbuy.com in Arc has 2 logins
+        // total (the blank one + a real one the user did NOT fix).
+        let blank = item("bestbuy.com", "")
+        let source: [UUID: BrowserSource] = [blank.credentialID: .arc]
+        let plan = AppModel.cleanupPlan(forDone: [blank], source: { source[$0] ?? .unknown }) { _, _ in 2 }
+
+        #expect(plan.safeCommands.isEmpty)               // not auto-deleted
+        #expect(plan.manualSites.count == 1)
+        #expect(plan.manualSites.first?.domain == "bestbuy.com")
+        #expect(plan.manualSites.first?.browser == .arc)
+        #expect(plan.manualSites.first?.loginCount == 2)
     }
 }
 

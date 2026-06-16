@@ -112,4 +112,14 @@ enum CleanupPlanner {
         }
         return lines.joined(separator: "\n")
     }
+
+    /// Wrap already-final body lines (commands and/or `#` comments) with the
+    /// header. Unlike `script(commands:)` this does not append `--confirm` — the
+    /// caller has already prepared each line.
+    static func script(lines body: [String], confirm: Bool) -> String {
+        guard !body.isEmpty else { return "" }
+        var lines = header("remove the old saved logins for the accounts you've re-keyed.", confirm: confirm)
+        lines.append(contentsOf: body)
+        return lines.joined(separator: "\n")
+    }
 }
