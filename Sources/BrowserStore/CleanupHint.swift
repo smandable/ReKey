@@ -38,25 +38,17 @@ public enum CleanupHint {
         matchCount == 1 && filter.identifiers.isEmpty
     }
 
-    /// Caution for a lone broad match, ending with the exact `--id` command to use
-    /// once the user has confirmed the entry is the *old* one.
-    public static func loneMatchCaution(
+    /// The precise `--id` command to delete one specific row — the escape hatch for
+    /// the rare case a lone match really is the old/stale entry.
+    public static func idForceCommand(
         login: StoredLogin,
         filter: LoginFilter,
         browser: BrowserSource
     ) -> String {
-        var idCommand = "rekey-cleanup delete --browser \(browser.rawValue)"
-        if let site = filter.site, !site.isEmpty { idCommand += " --site \(site)" }
-        if let user = filter.username, !user.isEmpty { idCommand += " --username \(user)" }
-        idCommand += " --id \(login.id) --confirm"
-
-        return """
-        Only 1 login matches. If your browser updated this login in place when you changed the
-        password, THIS IS YOUR CURRENT login — not a stale duplicate — and deleting it removes
-        your real saved login. A lone match is safe to delete only once you've confirmed it's
-        the OLD entry (e.g. a leftover duplicate the browser saved alongside the new one).
-        If it really is the old one, target it precisely by id:
-          \(idCommand)
-        """
+        var cmd = "rekey-cleanup delete --browser \(browser.rawValue)"
+        if let site = filter.site, !site.isEmpty { cmd += " --site \(site)" }
+        if let user = filter.username, !user.isEmpty { cmd += " --username \(user)" }
+        cmd += " --id \(login.id) --confirm"
+        return cmd
     }
 }

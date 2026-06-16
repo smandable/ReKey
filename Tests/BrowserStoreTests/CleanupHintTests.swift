@@ -54,15 +54,16 @@ struct CleanupHintTests {
         #expect(!CleanupHint.isLoneBroadMatch(matchCount: 0, filter: siteFilter))
     }
 
-    @Test("Lone-match caution warns it may be the current login and gives the --id command")
-    func loneMatchCautionText() {
+    @Test("idForceCommand builds the precise --id delete for the lone-match escape")
+    func idForceCommandText() {
         let login = StoredLogin(id: "212", browser: .arc, origin: "https://identity.fcpeuro.com/",
                                 signonRealm: nil, username: "", usernameIsEncrypted: false,
                                 createdAt: nil, lastUsedAt: nil)
-        let filter = LoginFilter(site: "fcpeuro.com")
-        let text = CleanupHint.loneMatchCaution(login: login, filter: filter, browser: .arc)
-        #expect(text.contains("CURRENT"))                 // names the risk
-        #expect(text.contains("Only 1 login matches"))
-        #expect(text.contains("--browser arc --site fcpeuro.com --id 212 --confirm"))  // exact re-target
+        // No username filter → command omits --username; pins the exact id.
+        #expect(CleanupHint.idForceCommand(login: login, filter: LoginFilter(site: "fcpeuro.com"), browser: .arc)
+            == "rekey-cleanup delete --browser arc --site fcpeuro.com --id 212 --confirm")
+        // With a username filter it's carried through.
+        #expect(CleanupHint.idForceCommand(login: login, filter: LoginFilter(site: "x.com", username: "me@y.com"), browser: .chrome)
+            == "rekey-cleanup delete --browser chrome --site x.com --username me@y.com --id 212 --confirm")
     }
 }

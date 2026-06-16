@@ -97,33 +97,39 @@ func run() -> Int32 {
                 return 1
             }
             let matches = try store.list(matching: filter)
-            print("\(browser.displayName) — \(storeURL.path)")
-            printTable(matches)
+            // Compact label so a batch cleanup reads as one tidy line per site
+            // instead of a repeated header + table + warning block.
+            let site = filter.site ?? ""
+            let label = site.isEmpty ? browser.displayName : "\(browser.rawValue) · \(site)"
+
             if matches.isEmpty {
-                print("\nNo logins match the filter; nothing to delete.")
+                print("\(label): no saved login matches — nothing to delete.")
                 printUnmatchedHint(store: store, filter: filter, browser: browser)
                 return 0
             }
 
-            // A lone match by site/username (no --id) can't be told apart from the
-            // user's current login — the browser may have updated it in place
-            // rather than leaving a stale duplicate. Caution on preview; refuse on
-            // --confirm unless they re-target it precisely by id.
-            let loneBroadMatch = CleanupHint.isLoneBroadMatch(matchCount: matches.count, filter: filter)
-
-            if !flag("confirm") {
-                print("\nDRY RUN: \(matches.count) login(s) would be deleted.")
-                if loneBroadMatch {
-                    print("\n" + CleanupHint.loneMatchCaution(login: matches[0], filter: filter, browser: browser))
+            // A lone match by site/username (no --id) is almost always the user's
+            // CURRENT login — the browser updated it in place, leaving no old
+            // duplicate. So in a cleanup there's nothing to remove: report it on one
+            // calm line and don't delete. (A precise --id delete isn't a lone broad
+            // match, so it falls through and runs.)
+            if CleanupHint.isLoneBroadMatch(matchCount: matches.count, filter: filter) {
+                let m = matches[0]
+                print("\(label): only your current login is saved (id \(m.id)) — no older duplicate, nothing to clean.")
+                if !flag("confirm") {
+                    print("    (if you know a stale copy exists: \(CleanupHint.idForceCommand(login: m, filter: filter, browser: browser)))")
                 }
-                print("\nRe-run with --confirm to delete them (the browser must be quit first).")
                 return 0
             }
 
-            if loneBroadMatch {
-                printErr("\n" + CleanupHint.loneMatchCaution(login: matches[0], filter: filter, browser: browser))
-                printErr("\nRefusing to delete a lone site/username match with --confirm. Re-run with the --id form above once you've confirmed it's the old entry.")
-                return 2
+            // 2+ matches, or a precise --id delete: show the detail.
+            print("\(browser.displayName) — \(storeURL.path)")
+            printTable(matches)
+
+            if !flag("confirm") {
+                print("\nDRY RUN: \(matches.count) login(s) would be deleted.")
+                print("Re-run with --confirm to delete them (the browser must be quit first).")
+                return 0
             }
 
             // Real delete: guardrails.
