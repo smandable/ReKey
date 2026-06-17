@@ -130,15 +130,21 @@ public struct CSVImporter: Sendable {
 
             let registrableDomain = canonicalizer.registrableDomain(fromRawURL: rawURL) ?? rawURL
             let host = canonicalizer.host(fromRawURL: rawURL) ?? ""
+            let secret = Secret(password)
+            // Stable across re-imports of the same login (see deterministicID).
+            let id = ImportedCredential.deterministicID(
+                source: source, registrableDomain: registrableDomain,
+                username: username, passwordHash: secret.sha256().base64EncodedString())
 
             credentials.append(ImportedCredential(
+                id: id,
                 source: source,
                 title: title,
                 rawURL: rawURL,
                 registrableDomain: registrableDomain,
                 host: host,
                 username: username,
-                password: Secret(password),
+                password: secret,
                 notes: notes,
                 hasTOTP: hasTOTP
             ))

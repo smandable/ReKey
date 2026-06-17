@@ -109,6 +109,34 @@ struct FixProgressTests {
         #expect(reopened.effectiveUsername(for: reCred) == "me@email.com")
     }
 
+    @Test("deterministicID is stable for the same login and differs by password")
+    func deterministicIDStability() {
+        let a = ImportedCredential.deterministicID(source: .arc, registrableDomain: "x.com", username: "u", passwordHash: "h1")
+        let b = ImportedCredential.deterministicID(source: .arc, registrableDomain: "x.com", username: "u", passwordHash: "h1")
+        let c = ImportedCredential.deterministicID(source: .arc, registrableDomain: "x.com", username: "u", passwordHash: "h2")
+        #expect(a == b)
+        #expect(a != c)
+    }
+
+    @Test("A queued fix survives a re-import (deterministic ids — no orphaned items)")
+    func deterministicIDsSurviveReimport() async throws {
+        clear(); defer { clear() }
+        let model = AppModel()
+        model.importData(Data(csv.utf8), displayName: "b.csv")
+        let cred = try #require(model.allCredentials.first)
+        await model.enqueueFix(for: cred)
+        let item = try #require(model.fixQueue.items.first)
+        #expect(item.credentialID == cred.id)
+
+        // Re-import the same data (as an auto-import poll would). Before deterministic
+        // ids this minted a fresh UUID, orphaning the queued item so Mark done no-op'd.
+        model.importData(Data(csv.utf8), displayName: "b.csv")
+        #expect(model.allCredentials.first?.id == cred.id)     // stable id
+        #expect(model.credential(item.credentialID) != nil)    // queued item still resolves
+        model.recordFixDone(item)
+        #expect(model.isFixed(cred))                           // not a silent no-op
+    }
+
     @Test("Reopen un-marks a fixed account so it can be redone")
     func unmarkFixed() throws {
         clear(); defer { clear() }

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// One credential after CSV parsing + normalization. This is the canonical unit
 /// the audit engine, findings view, and fix queue all operate on.
@@ -56,4 +57,21 @@ public struct ImportedCredential: Identifiable, Sendable, Equatable {
     /// registrable domain. This is what the fix queue shows, opens, and cleans —
     /// `registrableDomain` stays for reuse grouping (eTLD+1).
     public var site: String { host.isEmpty ? registrableDomain : host }
+
+    /// A STABLE id derived from the fields that identify this exact saved login,
+    /// so re-importing the same export (or an auto-import poll) yields the same id
+    /// — queued fix items and progress keep resolving across a re-import instead of
+    /// orphaning on a fresh random UUID. Two genuinely different logins still
+    /// differ (the inputs match the import-dedup key, so same-id ⇔ exact duplicate).
+    public static func deterministicID(
+        source: BrowserSource,
+        registrableDomain: String,
+        username: String,
+        passwordHash: String
+    ) -> UUID {
+        let key = "\(source.rawValue)\u{1}\(registrableDomain)\u{1}\(username)\u{1}\(passwordHash)"
+        let d = Array(SHA256.hash(data: Data(key.utf8)))   // 32 bytes; take the first 16 for the UUID
+        return UUID(uuid: (d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7],
+                           d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]))
+    }
 }
