@@ -134,6 +134,17 @@ func run() -> Int32 {
             print("\(browser.displayName) — \(storeURL.path)")
             printTable(matches)
 
+            // --site is an unanchored substring, so a loose value can sweep in
+            // unrelated sites. If the matches span more than one host, say so loudly
+            // so an over-broad filter is obvious before a --confirm.
+            if filter.identifiers.isEmpty {
+                let hosts = Set(matches.map { host(ofOrigin: $0.origin) })
+                if hosts.count > 1 {
+                    let sample = hosts.sorted().prefix(4).joined(separator: ", ")
+                    print("\n⚠️  These \(matches.count) matches span \(hosts.count) different sites (\(sample)\(hosts.count > 4 ? ", …" : "")) — your --site value may be too broad. Target one with --id if it caught the wrong sites.")
+                }
+            }
+
             if !flag("confirm") {
                 print("\nDRY RUN: \(matches.count) login(s) would be deleted.")
                 print("Re-run with --confirm to delete them (the browser must be quit first).")
@@ -167,6 +178,11 @@ func run() -> Int32 {
 }
 
 // MARK: - Output
+
+/// Host of a stored login's origin URL, for the over-match (multi-site) warning.
+func host(ofOrigin origin: String) -> String {
+    URLComponents(string: origin)?.host ?? origin
+}
 
 /// After an empty exact-filter result, check whether the same site has logins
 /// under a different/blank username or id and print a one-line hint if so — so a
