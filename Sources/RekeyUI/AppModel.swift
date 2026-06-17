@@ -145,6 +145,10 @@ public final class AppModel {
 
     /// Old/new password hashes per fixed account (progressKey), so a later import
     /// can verify the change saved. Hashes only — no passwords. Persisted.
+    /// Note: unsalted SHA-256, so a weak/known password is in principle
+    /// offline-guessable from the hash. Accepted: this host already holds the
+    /// plaintext store Rekey imported, and the hash is only an equality token —
+    /// never the password — so it leaks nothing the host doesn't already have.
     private var fixSaveRecords: [String: FixSaveRecord] = [:]
     /// Usernames the user types for blank-username logins (a recognition label —
     /// the browser saved the login without a username). Keyed by source|site,
@@ -767,12 +771,15 @@ public final class AppModel {
                                             passphrase: g.passphrase)
             }
         section = .fixing
-        // …then resolve their change URLs concurrently (URLSession throttles its own
-        // connections), so one slow host doesn't gate the rest of the batch.
+        // …then resolve their change URLs in bounded-concurrency batches, so one
+        // slow host doesn't gate the rest but a huge import doesn't fire hundreds of
+        // probes at once. (Items already show; this just fills in the precise URLs.)
         let queue = fixQueue
-        await withTaskGroup(of: Void.self) { group in
-            for id in ids {
-                group.addTask { await queue.resolveChangeURL(itemID: id) }
+        let batchSize = 8
+        for start in stride(from: 0, to: ids.count, by: batchSize) {
+            let chunk = ids[start..<min(start + batchSize, ids.count)]
+            await withTaskGroup(of: Void.self) { group in
+                for id in chunk { group.addTask { await queue.resolveChangeURL(itemID: id) } }
             }
         }
     }

@@ -29,7 +29,15 @@ func run() -> Int32 {
             if flagOnly.contains(arg) {
                 opts[arg, default: []].append("true"); i += 1
             } else {
-                opts[arg, default: []].append(i + 1 < raw.count ? raw[i + 1] : ""); i += 2
+                // A value flag takes the next token as its value — but not if that
+                // token is itself a flag (e.g. `--site --confirm`), which would
+                // silently swallow `--confirm`. Treat a missing value as empty.
+                let next = (i + 1 < raw.count) ? raw[i + 1] : nil
+                if let next, !next.hasPrefix("--"), next != "-h" {
+                    opts[arg, default: []].append(next); i += 2
+                } else {
+                    opts[arg, default: []].append(""); i += 1
+                }
             }
         } else if command == nil {
             command = arg; i += 1

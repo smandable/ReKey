@@ -397,6 +397,11 @@ private struct FixCard: View {
             Text(item.site).font(.headline)
             Spacer()
             statusBadge
+            Button { model.fixQueue.remove(itemID: item.id) } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .buttonStyle(.borderless).foregroundStyle(.secondary)
+            .help("Remove this from the queue. Doesn't change anything on the site or in your browser; if it's marked done, that stays recorded.")
         }
     }
 

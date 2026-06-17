@@ -67,6 +67,10 @@ public final class FixQueue {
     /// present). Surfaced so the UI can tell the user.
     public let clipboardClearAfter: Duration
 
+    /// Bumped on every copy so that re-copying the same secret cancels the earlier
+    /// auto-clear timer instead of letting it wipe the freshly-copied value early.
+    private var clipboardCopyGeneration = 0
+
     public init(
         generator: PasswordGenerator,
         router: any ChangeURLResolving,
@@ -241,10 +245,13 @@ public final class FixQueue {
     /// (compared by hash, so no plaintext is captured). If the user copied
     /// something else in the meantime, leave it.
     private func scheduleClipboardClear(matchingHash digest: Data) {
+        clipboardCopyGeneration += 1
+        let generation = clipboardCopyGeneration   // a later copy resets the clock
         let delay = clipboardClearAfter
         let clipboard = self.clipboard
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
             try? await Task.sleep(for: delay)
+            guard let self, generation == self.clipboardCopyGeneration else { return }
             clipboard.clearIfMatchesHash(digest)
         }
     }
