@@ -102,6 +102,7 @@ struct FixQueueView: View {
                         }
                         .buttonStyle(.borderless).controlSize(.small)
                         .help("Copy this command")
+                        .accessibilityLabel("Copy this command")
                     }
                 }
             }
@@ -146,6 +147,7 @@ struct FixQueueView: View {
             }
             .buttonStyle(.borderless).controlSize(.small)
             .help("Copy")
+            .accessibilityLabel("Copy command")
         }
         .padding(6)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
@@ -372,6 +374,7 @@ private struct FixCard: View {
                         }
                         .buttonStyle(.borderless)
                         .help("Copy command")
+                        .accessibilityLabel("Copy command")
                     }
                 }
             }
@@ -402,6 +405,7 @@ private struct FixCard: View {
             }
             .buttonStyle(.borderless).foregroundStyle(.secondary)
             .help("Remove this from the queue. Doesn't change anything on the site or in your browser; if it's marked done, that stays recorded.")
+            .accessibilityLabel("Remove from queue")
         }
     }
 
@@ -508,6 +512,7 @@ private struct FixCard: View {
         }
         .buttonStyle(.borderless)
         .help(help)
+        .accessibilityLabel(help)
     }
 
     /// A clipboard icon button that flips to a green checkmark right after a copy.
@@ -519,6 +524,8 @@ private struct FixCard: View {
         }
         .buttonStyle(.borderless)
         .help(help)
+        .accessibilityLabel(help)
+        .accessibilityValue(copied ? "Copied" : "")
     }
 
     private func flashCopied(_ field: CopiedField) {

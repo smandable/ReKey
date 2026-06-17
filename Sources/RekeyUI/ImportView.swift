@@ -82,6 +82,7 @@ struct ImportView: View {
                 }
                 .buttonStyle(.borderless).foregroundStyle(.secondary)
                 .help("Dismiss")
+                .accessibilityLabel("Dismiss error")
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)

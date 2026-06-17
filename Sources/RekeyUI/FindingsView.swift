@@ -70,6 +70,7 @@ struct FindingsView: View {
                 Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
                     .buttonStyle(.borderless).foregroundStyle(.secondary)
                     .help("Clear")
+                    .accessibilityLabel("Clear search")
             }
         }
         .padding(8)
