@@ -42,7 +42,11 @@ struct FindingsView: View {
                 }
         }
         return ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            // LazyVStack, NOT VStack: at thousands of credentials a plain VStack
+            // builds every domain section + row up front on the main thread, which
+            // beachballs right after an audit of a big import. Lazy renders only
+            // what's on screen.
+            LazyVStack(alignment: .leading, spacing: 12) {
                 summary(report)
                 unsavedFixBanner
                 searchBar

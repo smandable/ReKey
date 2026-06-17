@@ -50,6 +50,44 @@ public struct AuditReport: Sendable {
     /// All domains, grouped, sorted alphabetically by registrable domain.
     public let domainGroups: [DomainGroup]
 
+    /// id → its reuse cluster, precomputed so `cluster(for:)` is O(1). A credential
+    /// belongs to at most one cluster (clusters partition by password value).
+    private let clusterIndex: [UUID: ReuseCluster]
+
+    public init(
+        credentials: [ImportedCredential],
+        findingsByCredential: [UUID: AuditFinding],
+        clusters: [ReuseCluster],
+        compromised: [UUID: CompromisedStatus],
+        reusedAcrossSites: Set<UUID>,
+        duplicatedWithinSite: Set<UUID>,
+        weak: Set<UUID>,
+        crossEcosystemDuplicates: Set<UUID>,
+        strayBlankUsername: Set<UUID>,
+        multiBrowserAccounts: [UUID: [BrowserSource]],
+        domainGroups: [DomainGroup]
+    ) {
+        self.credentials = credentials
+        self.findingsByCredential = findingsByCredential
+        self.clusters = clusters
+        self.compromised = compromised
+        self.reusedAcrossSites = reusedAcrossSites
+        self.duplicatedWithinSite = duplicatedWithinSite
+        self.weak = weak
+        self.crossEcosystemDuplicates = crossEcosystemDuplicates
+        self.strayBlankUsername = strayBlankUsername
+        self.multiBrowserAccounts = multiBrowserAccounts
+        self.domainGroups = domainGroups
+        // Precompute id → cluster. The old per-call linear scan of every cluster
+        // made prioritized sorting and per-row "shared with" lookups O(n²)+, which
+        // froze the UI at thousands of credentials.
+        var index: [UUID: ReuseCluster] = [:]
+        for cluster in clusters {
+            for id in cluster.credentialIDs { index[id] = cluster }
+        }
+        self.clusterIndex = index
+    }
+
     /// Only the domain groups that contain at least one finding, alphabetical.
     public var flaggedDomainGroups: [DomainGroup] {
         domainGroups.filter(\.hasFinding)
@@ -74,9 +112,9 @@ public struct AuditReport: Sendable {
         group.credentials.compactMap { cluster(for: $0.id)?.credentialIDs.count }.max() ?? 0
     }
 
-    /// The cluster (if any) that a given credential belongs to.
+    /// The cluster (if any) that a given credential belongs to. O(1).
     public func cluster(for credentialID: UUID) -> ReuseCluster? {
-        clusters.first { $0.credentialIDs.contains(credentialID) }
+        clusterIndex[credentialID]
     }
 }
 

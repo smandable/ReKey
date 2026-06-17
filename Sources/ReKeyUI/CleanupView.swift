@@ -11,7 +11,7 @@ struct CleanupView: View {
 
     @State private var keep: BrowserSource?
     @State private var selected: Set<String> = []
-    @State private var confirm = false
+    @State private var confirm = true   // default to a runnable (deleting) script, like the Fix Queue cleanup
     @State private var copied = false
 
     private var importedBrowsers: [BrowserSource] {
@@ -20,14 +20,26 @@ struct CleanupView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            // LazyVStack, not VStack: a browser you've migrated away from can hold
+            // hundreds/thousands of sites; building every candidate row up front
+            // froze the main thread. Lazy renders only what's on screen.
+            LazyVStack(alignment: .leading, spacing: 10) {
                 header
                 if model.allCredentials.isEmpty {
                     unavailable("Nothing imported yet", "Import your browsers' CSVs first, then come back to clean up the old ones.")
                 } else if importedBrowsers.count < 2 {
                     unavailable("Only one browser imported", "Import from the browsers you've migrated away from to find stale logins to remove.")
                 } else if let keep {
-                    content(keep)
+                    keepPicker
+                    if candidates.isEmpty {
+                        unavailable("Nothing to clean up", "No removable logins from browsers other than \(keep.displayName).")
+                    } else {
+                        summary(candidates, keep: keep)
+                        // Flat ForEach of browser-header + candidate rows, a direct
+                        // child of the LazyVStack so the rows materialize lazily.
+                        ForEach(rows(for: candidates)) { row in rowView(row, keep: keep) }
+                        scriptSection(candidates)
+                    }
                 }
             }
             .padding(20)
@@ -35,6 +47,52 @@ struct CleanupView: View {
         }
         .frame(maxWidth: .infinity)
         .onAppear(perform: ensureKeep)
+    }
+
+    /// Candidate (old-browser, site) rows for the currently-kept browser. Cheap
+    /// (O(n)); recomputed per render so it tracks the live import and selection.
+    private var candidates: [Candidate] {
+        guard let keep else { return [] }
+        return CleanupPlanner.candidates(from: model.allCredentials, keep: keep)
+    }
+
+    private var keepPicker: some View {
+        HStack {
+            Text("Browser you're keeping:")
+            Picker("Browser you're keeping", selection: keepBinding) {
+                ForEach(importedBrowsers, id: \.self) { Text($0.displayName).tag(Optional($0)) }
+            }
+            .labelsHidden().pickerStyle(.menu).frame(maxWidth: 200)
+            Spacer()
+        }
+    }
+
+    /// Flatten candidates into one browser header followed by its rows — a flat
+    /// list the LazyVStack can render on demand (a GroupBox per browser couldn't).
+    private func rows(for candidates: [Candidate]) -> [CleanupRow] {
+        var out: [CleanupRow] = []
+        for browser in browsers(in: candidates) {
+            let group = candidates.filter { $0.browser == browser }
+            out.append(.header(browser, count: group.count))
+            out.append(contentsOf: group.map { CleanupRow.candidate($0) })
+        }
+        return out
+    }
+
+    @ViewBuilder
+    private func rowView(_ row: CleanupRow, keep: BrowserSource) -> some View {
+        switch row {
+        case let .header(browser, count):
+            HStack(spacing: 8) {
+                BrowserSourcePill(source: browser)
+                Text("\(count) site(s)").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.top, 8)
+        case let .candidate(candidate):
+            candidateRow(candidate, keep: keep)
+                .padding(.vertical, 2)
+        }
     }
 
     private var header: some View {
@@ -45,53 +103,12 @@ struct CleanupView: View {
         }
     }
 
-    @ViewBuilder
-    private func content(_ keep: BrowserSource) -> some View {
-        let candidates = CleanupPlanner.candidates(from: model.allCredentials, keep: keep)
-
-        HStack {
-            Text("Browser you're keeping:")
-            Picker("Browser you're keeping", selection: keepBinding) {
-                ForEach(importedBrowsers, id: \.self) { Text($0.displayName).tag(Optional($0)) }
-            }
-            .labelsHidden()
-            .frame(maxWidth: 200)
-            Spacer()
-        }
-
-        if candidates.isEmpty {
-            unavailable("Nothing to clean up", "No removable logins from browsers other than \(keep.displayName).")
-        } else {
-            summary(candidates, keep: keep)
-            ForEach(browsers(in: candidates), id: \.self) { browser in
-                browserGroup(browser, candidates.filter { $0.browser == browser }, keep: keep)
-            }
-            scriptSection(candidates)
-        }
-    }
-
     private func summary(_ candidates: [Candidate], keep: BrowserSource) -> some View {
         let safe = candidates.filter(\.fullySafe).count
         let sole = candidates.count - safe
         return Text("**\(candidates.count)** site(s) saved in other browsers — **\(safe)** also exist in \(keep.displayName) (pre-selected, safe to remove); **\(sole)** exist only in the old browser (unchecked — deleting loses the password).")
             .font(.callout).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func browserGroup(_ browser: BrowserSource, _ candidates: [Candidate], keep: BrowserSource) -> some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    BrowserSourcePill(source: browser)
-                    Text("\(candidates.count) site(s)").font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                }
-                ForEach(candidates) { candidate in
-                    candidateRow(candidate, keep: keep)
-                }
-            }
-            .padding(6)
-        }
     }
 
     private func candidateRow(_ candidate: Candidate, keep: BrowserSource) -> some View {
@@ -211,6 +228,21 @@ struct CleanupView: View {
         panel.message = "Save the cleanup script. Review it, then run it in Terminal."
         if panel.runModal() == .OK, let url = panel.url {
             try? script.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+}
+
+/// One row of the flattened Clean Up list: a per-browser section header, or a
+/// candidate site to (optionally) remove. Flat rows (vs nested GroupBoxes) are
+/// what let the LazyVStack render them on demand.
+private enum CleanupRow: Identifiable {
+    case header(BrowserSource, count: Int)
+    case candidate(CleanupPlanner.Candidate)
+
+    var id: String {
+        switch self {
+        case let .header(browser, _): return "h:\(browser.rawValue)"
+        case let .candidate(candidate): return "c:\(candidate.id)"
         }
     }
 }

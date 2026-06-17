@@ -99,6 +99,29 @@ struct AuditEngineTests {
         #expect(phases.withLock { $0 } == [.analyzing, .finalizing])
     }
 
+    // MARK: - Cluster lookup (O(1) index)
+
+    @Test("cluster(for:) returns the shared-password cluster for members, nil for uniques")
+    func clusterLookup() async {
+        func cred(_ domain: String, pw: String) -> ImportedCredential {
+            ImportedCredential(source: .chrome, title: nil, rawURL: "https://\(domain)/",
+                               registrableDomain: domain, username: "u",
+                               password: Secret(pw), notes: nil, hasTOTP: false)
+        }
+        let a = cred("a.com", pw: "shared-PW")     // ┐ same password across two sites
+        let b = cred("b.com", pw: "shared-PW")     // ┘ → one cross-site reuse cluster
+        let solo = cred("c.com", pw: "unique-PW")  // not reused → no cluster
+
+        let coordinator = AuditCoordinator(compromiseChecker: StubChecker(compromised: [], count: 0))
+        let r = await coordinator.audit(credentials: [a, b, solo])
+
+        let clusterA = r.cluster(for: a.id)
+        #expect(clusterA != nil)
+        #expect(Set(clusterA?.credentialIDs ?? []) == [a.id, b.id])   // both members → same cluster
+        #expect(r.cluster(for: b.id)?.id == clusterA?.id)
+        #expect(r.cluster(for: solo.id) == nil)                       // unique password → nil
+    }
+
     // MARK: - Cross-ecosystem duplicates
 
     @Test("Flags accounts saved in BOTH an Apple and a non-Apple store; nothing else")
