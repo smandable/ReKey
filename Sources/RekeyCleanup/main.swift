@@ -163,6 +163,8 @@ func run() -> Int32 {
             let outcome = try store.delete(matching: filter, backupDirectory: backupDir)
             print("\nBacked up to: \(outcome.backupPath.path)")
             print("Deleted \(outcome.deletedCount) login(s).")
+            // Keep the recovery snapshots from piling up forever (best-effort).
+            StoreBackup.pruneOldBackups(root: backupRoot)
             return 0
 
         default:

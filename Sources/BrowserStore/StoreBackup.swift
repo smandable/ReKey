@@ -16,6 +16,33 @@ public enum StoreBackup {
         root.appendingPathComponent("\(label)-\(timestamp)", isDirectory: true)
     }
 
+    /// Keep only the most recent `keepPerLabel` backup directories per browser
+    /// label under `root`, deleting older ones so recovery snapshots (copies of
+    /// the browser's store) don't accumulate without bound. Best-effort and
+    /// silent: a pruning failure must never fail an already-completed cleanup, and
+    /// only Rekey's own `<label>-<timestamp>-<rand>` directories are ever touched.
+    public static func pruneOldBackups(root: URL, keepPerLabel: Int = 10) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
+
+        var byLabel: [String: [URL]] = [:]
+        for dir in entries {
+            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
+            // "<label>-<yyyyMMdd>-<HHmmss>-<rand>" → 4+ dash segments; label is all
+            // but the last three. Anything else isn't ours — skip it.
+            let parts = dir.lastPathComponent.split(separator: "-")
+            guard parts.count >= 4 else { continue }
+            let label = parts.dropLast(3).joined(separator: "-")
+            byLabel[label, default: []].append(dir)
+        }
+        for (_, dirs) in byLabel where dirs.count > keepPerLabel {
+            // Name sorts chronologically (timestamp embedded), so newest-first.
+            let sorted = dirs.sorted { $0.lastPathComponent > $1.lastPathComponent }
+            for old in sorted.dropFirst(keepPerLabel) { try? fm.removeItem(at: old) }
+        }
+    }
+
     /// Copy every existing file in `files` into `directory` (created if needed),
     /// preserving filenames. Returns the directory. Throws on any failure.
     @discardableResult
