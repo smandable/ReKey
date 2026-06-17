@@ -102,21 +102,29 @@ struct FixQueueTests {
         #expect(queue.items.first?.status == .opened)    // 3. status
     }
 
-    @Test("Approve is only valid from pending; done/skip transitions")
+    @Test("Approve is only valid from pending; the Copy & open → opened → done path")
     func transitions() async throws {
         let (queue, _, _) = try makeQueue()
         let id = try #require(try await queue.enqueue(credential: credential()))
 
-        queue.markDone(itemID: id)                       // not allowed from pending
-        #expect(queue.items.first?.status == .pending)
-
         queue.approve(itemID: id)
         #expect(queue.items.first?.status == .opened)
-        queue.approve(itemID: id)                        // no-op now
+        queue.approve(itemID: id)                        // no-op now (approve is pending-only)
         #expect(queue.items.first?.status == .opened)
 
         queue.markDone(itemID: id)
         #expect(queue.items.first?.status == .done)
+    }
+
+    @Test("Mark done is allowed directly from pending (changed it yourself)")
+    func markDoneFromPending() async throws {
+        let (queue, pasteboard, opener) = try makeQueue()
+        let id = try #require(try await queue.enqueue(credential: credential()))
+
+        queue.markDone(itemID: id)                       // skip Copy & open entirely
+        #expect(queue.items.first?.status == .done)
+        #expect(pasteboard.value == nil)                 // nothing was copied to the clipboard
+        #expect(opener.opened.isEmpty)                   // and the browser was never opened
     }
 
     @Test("Skip moves a pending item to skipped")

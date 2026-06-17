@@ -215,10 +215,12 @@ public final class FixQueue {
         opener.open(url)
     }
 
-    /// User confirms they changed the password on the site (the browser saved
-    /// it). Terminal state.
+    /// User confirms the password is changed and saved — reached either after
+    /// Copy & open (`.opened`) or directly from `.pending` when they changed it
+    /// themselves (e.g. right inside the browser's password manager) and skipped
+    /// the Copy & open step. Terminal state.
     public func markDone(itemID: UUID) {
-        setStatus(itemID, to: .done, from: [.opened])
+        setStatus(itemID, to: .done, from: [.pending, .opened])
     }
 
     /// User opened the change page but backed out (changed their mind, didn't

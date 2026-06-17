@@ -15,7 +15,9 @@ struct FixQueueView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            // LazyVStack, not VStack: "Add all to queue" on a large import can queue
+            // thousands of cards; eager building of them all freezes the main thread.
+            LazyVStack(alignment: .leading, spacing: 14) {
                 header
                 if model.fixQueue.items.isEmpty {
                     ContentUnavailableView(
@@ -629,14 +631,16 @@ private struct FixCard: View {
 
     private var actionRow: some View {
         HStack {
-            if item.status == .pending {
-                Label("Copy & open copies the new password and opens the change page in your browser.", systemImage: "info.circle")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             Spacer()
             switch item.status {
             case .pending:
                 Button("Skip", role: .cancel) { model.recordFixSkipped(item) }
+                // Shortcut for the "I'll just do it in my browser's password
+                // manager" path: mark done without Copy & open or the saved-it
+                // toggle. The new password is still on the New row to copy first,
+                // and the next re-import of this browser still verifies it saved.
+                Button("I changed it myself") { model.recordFixDone(item) }
+                    .help("Already updated and saved this password yourself — e.g. straight in your browser's password manager? Copy the new password from the New row first if you need it, then this marks the fix done and skips the Copy & open step. ReKey still confirms it actually saved the next time you import this browser.")
                 Button {
                     model.fixQueue.approve(itemID: item.id)
                 } label: { Label("Copy & open", systemImage: "doc.on.doc") }

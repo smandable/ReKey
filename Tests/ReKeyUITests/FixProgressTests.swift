@@ -181,6 +181,29 @@ struct FixProgressTests {
         #expect(!reloaded.isFixed(reCred))
     }
 
+    @Test("Marking a pending fix done directly (changed it myself) advances it and keeps save-verification")
+    func directDoneFromPending() async throws {
+        clear(); defer { clear() }
+        let model = AppModel()
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")     // old pw
+        let cred = try #require(model.allCredentials.first)
+        await model.enqueueFix(for: cred)
+        let queued = try #require(model.fixQueue.items.first)
+        #expect(queued.status == .pending)
+
+        model.recordFixDone(queued)                       // no Copy & open first
+
+        #expect(model.fixQueue.items.first?.status == .done)   // item advanced straight to done
+        #expect(model.isFixed(cred))                           // recorded as fixed
+
+        // The save-verification record was still captured: a re-import that STILL
+        // shows the old password flags it maybe-unsaved, exactly like the normal path.
+        let reopened = AppModel()
+        reopened.importData(Data(csv.utf8), displayName: "chrome.csv")
+        let reCred = try #require(reopened.allCredentials.first)
+        #expect(reopened.fixMaySaveFailed(reCred))
+    }
+
     @Test("Skipping records the account without marking it fixed")
     func persistsSkip() throws {
         clear(); defer { clear() }
