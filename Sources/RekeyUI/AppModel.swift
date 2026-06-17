@@ -118,6 +118,8 @@ public final class AppModel {
     public private(set) var autoImportMessage: String?
 
     private let folderWatcher = FolderWatcher()
+    /// Guards scanWatchedFolder against re-entry from overlapping watch events.
+    private var isScanning = false
     private var watchStart = Date.distantPast
     private var seenSignatures: Set<String> = []
     /// Import files modified within this grace window before watching started, so
@@ -223,10 +225,10 @@ public final class AppModel {
         self.browserOpener = opener
         self.availableBrowsers = Self.discoverBrowsers()
 
-        // The diceware wordlist is a bundled resource we ship, so this only
-        // fails if the app bundle is corrupt — in which case the generator is
-        // unusable regardless. Fail fast rather than limp along.
-        let generator = try! PasswordGenerator()
+        // bestEffort, not try!: the diceware wordlist is bundled, so it only fails
+        // to load if the app bundle is corrupt — but that must not crash the app at
+        // launch. Character-based generation still works; only passphrases degrade.
+        let generator = PasswordGenerator.bestEffort()
         self.fixQueue = FixQueue(
             generator: generator,
             router: ResetRouter(),
@@ -581,6 +583,13 @@ public final class AppModel {
 
     private func scanWatchedFolder() {
         guard let dir = watchedFolder else { return }
+        // Reentrancy guard: the vnode source and the poll timer can both fire
+        // onChange. The scan is synchronous on the main actor today (so it can't
+        // truly re-enter), but guard anyway so a future async import path can't
+        // double-process the same export.
+        guard !isScanning else { return }
+        isScanning = true
+        defer { isScanning = false }
         let threshold = watchStart.addingTimeInterval(-importGraceSeconds)
         for entry in FolderScan.freshCSVs(in: dir, since: threshold, seen: seenSignatures) {
             seenSignatures.insert(entry.signature)

@@ -18,6 +18,16 @@ public struct PasswordGenerator: Sendable {
         self.words = try Wordlist.load()
     }
 
+    private init(words: [String]) { self.words = words }
+
+    /// Construction that never throws, for the app's long-lived generator: if the
+    /// bundled wordlist can't be read (a corrupt app bundle), character-based
+    /// generation still works and only passphrase generation fails — gracefully,
+    /// not as a launch crash.
+    public static func bestEffort() -> PasswordGenerator {
+        PasswordGenerator(words: (try? Wordlist.load()) ?? [])
+    }
+
     // MARK: - Unbiased randomness
 
     /// Returns a uniformly random integer in `[0, upperBound)` using rejection
@@ -205,6 +215,7 @@ public struct PasswordGenerator: Sendable {
         guard wordCount >= 1 else {
             throw PasswordError.invalidArgument("wordCount must be >= 1, got \(wordCount)")
         }
+        guard !words.isEmpty else { throw PasswordError.wordlistUnavailable }
 
         var picked: [String] = []
         picked.reserveCapacity(wordCount)
