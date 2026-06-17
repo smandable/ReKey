@@ -20,7 +20,7 @@ public enum StoreBackup {
     /// label under `root`, deleting older ones so recovery snapshots (copies of
     /// the browser's store) don't accumulate without bound. Best-effort and
     /// silent: a pruning failure must never fail an already-completed cleanup, and
-    /// only Rekey's own `<label>-<timestamp>-<rand>` directories are ever touched.
+    /// only ReKey's own `<label>-<timestamp>-<rand>` directories are ever touched.
     public static func pruneOldBackups(root: URL, keepPerLabel: Int = 10) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(

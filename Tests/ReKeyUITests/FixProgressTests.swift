@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import Model
-@testable import RekeyUI
+@testable import ReKeyUI
 
 // Serialized: mutates the shared UserDefaults progress keys.
 @MainActor

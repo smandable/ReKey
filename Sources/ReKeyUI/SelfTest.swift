@@ -5,9 +5,9 @@ import ResetRouter
 
 /// A headless smoke test that the vendored, bundled resources (Public Suffix
 /// List, EFF wordlist, fallback map) actually load when running as the packaged
-/// .app. Invoked with `Rekey --selftest`; it runs before any window appears and
+/// .app. Invoked with `ReKey --selftest`; it runs before any window appears and
 /// exits with status 0 (pass) or 1 (fail).
-public enum RekeySelfTest {
+public enum ReKeySelfTest {
     public static func runAndExit() -> Never {
         var ok = true
         func check(_ name: String, _ cond: Bool) {

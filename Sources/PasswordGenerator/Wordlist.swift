@@ -18,10 +18,10 @@ enum Wordlist {
     /// Parse the bundled wordlist into its words. Throws if the resource is
     /// missing, unreadable, or malformed.
     static func load() throws -> [String] {
-        guard let url = RekeyResources.url(
+        guard let url = ReKeyResources.url(
             forResource: resourceName,
             withExtension: resourceExtension,
-            moduleBundleName: "Rekey_PasswordGenerator",
+            moduleBundleName: "ReKey_PasswordGenerator",
             fallback: .module
         ) else {
             throw PasswordError.wordlistUnavailable

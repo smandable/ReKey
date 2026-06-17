@@ -1,8 +1,8 @@
 import SwiftUI
 import AppKit
 
-/// Pins the hosting window's level so Rekey can float above the browser window it
-/// spawns for a change page. Sandbox-safe: it only ever touches Rekey's *own*
+/// Pins the hosting window's level so ReKey can float above the browser window it
+/// spawns for a change page. Sandbox-safe: it only ever touches ReKey's *own*
 /// window — never another app's — which is the most a sandboxed app can do about
 /// window placement. Attach as a `.background(...)` of the root view.
 struct WindowLevelModifier: NSViewRepresentable {

@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import Model
-@testable import RekeyUI
+@testable import ReKeyUI
 
 @Suite("Cleanup planner")
 struct CleanupPlannerTests {

@@ -23,7 +23,7 @@ enum Prefs {
         d.object(forKey: showPasswords) as? Bool ?? true
     }
 
-    /// Whether Rekey's window floats above other windows (true when unset), so the
+    /// Whether ReKey's window floats above other windows (true when unset), so the
     /// browser change page it opens doesn't bury it.
     static func keepOnTopValue(_ d: UserDefaults = .standard) -> Bool {
         d.object(forKey: keepOnTop) as? Bool ?? true

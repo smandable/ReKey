@@ -3,7 +3,7 @@ import Model
 import BrowserStore
 
 // rekey-cleanup — a SEPARATE, opt-in tool to delete stale saved logins from a
-// browser's store. It is deliberately not part of the sandboxed Rekey.app.
+// browser's store. It is deliberately not part of the sandboxed ReKey.app.
 //
 // Safety model:
 //   • Dry-run by DEFAULT. `delete` shows what it would remove and does nothing
@@ -234,7 +234,7 @@ func printErr(_ message: String) {
 
 func printUsage() {
     print("""
-    rekey-cleanup — delete stale saved logins from a browser's store (opt-in, separate from Rekey.app).
+    rekey-cleanup — delete stale saved logins from a browser's store (opt-in, separate from ReKey.app).
 
     USAGE
       rekey-cleanup list   --browser <name> [--profile <p>] [--path <file>] [--site <s>] [--username <u>] [--id <id>]

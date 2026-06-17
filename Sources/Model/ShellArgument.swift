@@ -2,7 +2,7 @@ import Foundation
 
 public extension String {
     /// This string as one safely-quoted POSIX shell argument, for building the
-    /// `rekey-cleanup` commands/scripts Rekey generates (and tells the user to run
+    /// `rekey-cleanup` commands/scripts ReKey generates (and tells the user to run
     /// in a non-sandboxed shell).
     ///
     /// Values made only of letters/digits and `@._-+` (clean domains, emails, row

@@ -2,7 +2,7 @@ import Testing
 import Foundation
 import Model
 import PasswordGenerator
-@testable import RekeyUI
+@testable import ReKeyUI
 
 @Suite("New-password generation defaults")
 struct GenerationDefaultsTests {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Locates a vendored resource across the contexts Rekey runs in.
+/// Locates a vendored resource across the contexts ReKey runs in.
 ///
 /// Why this exists: SwiftPM's generated `Bundle.module` accessor looks for
 /// `<Name>.bundle` next to `Bundle.main.bundleURL`, which for a packaged `.app`
@@ -11,7 +11,7 @@ import Foundation
 /// `Contents/Resources` candidate matches — the accessor is never evaluated and
 /// can't trip its own `fatalError`. For `swift test` / `swift run`, the
 /// candidates miss and the fallback resolves normally.
-public enum RekeyResources {
+public enum ReKeyResources {
     public static func url(
         forResource name: String,
         withExtension ext: String,

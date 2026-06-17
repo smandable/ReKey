@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1A0000000000000000000404"
-               BuildableName = "Rekey.app"
-               BlueprintName = "Rekey"
-               ReferencedContainer = "container:Rekey.xcodeproj">
+               BuildableName = "ReKey.app"
+               BlueprintName = "ReKey"
+               ReferencedContainer = "container:ReKey.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -43,9 +43,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1A0000000000000000000404"
-            BuildableName = "Rekey.app"
-            BlueprintName = "Rekey"
-            ReferencedContainer = "container:Rekey.xcodeproj">
+            BuildableName = "ReKey.app"
+            BlueprintName = "ReKey"
+            ReferencedContainer = "container:ReKey.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -60,9 +60,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1A0000000000000000000404"
-            BuildableName = "Rekey.app"
-            BlueprintName = "Rekey"
-            ReferencedContainer = "container:Rekey.xcodeproj">
+            BuildableName = "ReKey.app"
+            BlueprintName = "ReKey"
+            ReferencedContainer = "container:ReKey.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

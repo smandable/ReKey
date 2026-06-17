@@ -28,8 +28,8 @@ struct SettingsView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Keep Rekey above other windows", isOn: $keepOnTop)
-                        Text("Rekey floats on top so the browser change page it opens doesn't bury it — park Rekey in a corner and the browser opens behind it. Rekey is sandboxed, so it can't move the browser's window onto another monitor; floating is the reliable way to keep it from being covered. Turn off to behave like a normal window.")
+                        Toggle("Keep ReKey above other windows", isOn: $keepOnTop)
+                        Text("ReKey floats on top so the browser change page it opens doesn't bury it — park ReKey in a corner and the browser opens behind it. ReKey is sandboxed, so it can't move the browser's window onto another monitor; floating is the reliable way to keep it from being covered. Turn off to behave like a normal window.")
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -38,7 +38,7 @@ struct SettingsView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Used when Rekey generates a replacement in the Fix Queue. You can still change any of these per item.")
+                        Text("Used when ReKey generates a replacement in the Fix Queue. You can still change any of these per item.")
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
 

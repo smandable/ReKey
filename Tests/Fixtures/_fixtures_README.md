@@ -1,4 +1,4 @@
-# Rekey test fixtures
+# ReKey test fixtures
 
 All credentials here are synthetic. The values are fake and exist only to exercise the importer, the reuse and compromise logic, and the HIBP client against mocked responses. Nothing here is a real secret.
 

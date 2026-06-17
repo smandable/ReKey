@@ -1,6 +1,6 @@
 import Testing
 import Model
-@testable import RekeyUI
+@testable import ReKeyUI
 
 @Suite("Stale-login cleanup guidance")
 struct StaleLoginGuidanceTests {

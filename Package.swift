@@ -1,26 +1,26 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// Rekey — local-first password health auditor.
+// ReKey — local-first password health auditor.
 //
 // Architecture: every piece of logic lives in a SwiftUI-free, independently
-// testable library target. UI sits on top in `RekeyUI`, and `RekeyApp` is the
-// thin @main executable. The sandboxed .app is assembled from `RekeyApp` by
+// testable library target. UI sits on top in `ReKeyUI`, and `ReKeyApp` is the
+// thin @main executable. The sandboxed .app is assembled from `ReKeyApp` by
 // Scripts/build_app.sh (codesign + entitlements); there is no .xcodeproj.
 let package = Package(
-    name: "Rekey",
+    name: "ReKey",
     platforms: [.macOS(.v15)],
     products: [
-        .executable(name: "Rekey", targets: ["RekeyApp"]),
-        .library(name: "RekeyCore", targets: [
+        .executable(name: "ReKey", targets: ["ReKeyApp"]),
+        .library(name: "ReKeyCore", targets: [
             "Model", "ImportKit", "AuditEngine", "HIBPClient",
             "PasswordGenerator", "ResetRouter", "FixQueue",
         ]),
         // Exposed so the Xcode app target can link the UI from the local package.
-        .library(name: "RekeyUI", targets: ["RekeyUI"]),
+        .library(name: "ReKeyUI", targets: ["ReKeyUI"]),
         // SEPARATE, opt-in cleanup tool. Deliberately NOT part of the sandboxed
         // app: it does direct (but decrypt-free) deletes from browser stores.
-        .executable(name: "rekey-cleanup", targets: ["RekeyCleanup"]),
+        .executable(name: "rekey-cleanup", targets: ["ReKeyCleanup"]),
     ],
     targets: [
         // MARK: Core logic (no SwiftUI)
@@ -50,14 +50,14 @@ let package = Package(
             dependencies: ["Model"],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
-        .executableTarget(name: "RekeyCleanup", dependencies: ["BrowserStore"]),
+        .executableTarget(name: "ReKeyCleanup", dependencies: ["BrowserStore"]),
 
         // MARK: UI + app
-        .target(name: "RekeyUI", dependencies: [
+        .target(name: "ReKeyUI", dependencies: [
             "Model", "ImportKit", "AuditEngine", "HIBPClient",
             "PasswordGenerator", "ResetRouter", "FixQueue",
         ]),
-        .executableTarget(name: "RekeyApp", dependencies: ["RekeyUI"]),
+        .executableTarget(name: "ReKeyApp", dependencies: ["ReKeyUI"]),
 
         // MARK: Test support (regular target, lives under Tests/, loads fixtures)
         .target(name: "TestSupport", dependencies: ["Model"], path: "Tests/TestSupport"),
@@ -70,6 +70,6 @@ let package = Package(
         .testTarget(name: "ResetTests", dependencies: ["ResetRouter"]),
         .testTarget(name: "FixQueueTests", dependencies: ["FixQueue", "Model", "PasswordGenerator", "ResetRouter"]),
         .testTarget(name: "BrowserStoreTests", dependencies: ["BrowserStore"]),
-        .testTarget(name: "RekeyUITests", dependencies: ["RekeyUI", "Model", "PasswordGenerator"]),
+        .testTarget(name: "ReKeyUITests", dependencies: ["ReKeyUI", "Model", "PasswordGenerator"]),
     ]
 )

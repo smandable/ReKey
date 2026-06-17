@@ -26,7 +26,7 @@ struct ImportView: View {
                             }
                             .labelsHidden()
                             .frame(maxWidth: 180)
-                            .help("Chrome, Arc, Brave, Edge, Opera, and Vivaldi all export identical CSVs, so Rekey can't tell them apart. Pick the right one before importing. (Firefox and Apple Passwords are detected automatically.)")
+                            .help("Chrome, Arc, Brave, Edge, Opera, and Vivaldi all export identical CSVs, so ReKey can't tell them apart. Pick the right one before importing. (Firefox and Apple Passwords are detected automatically.)")
                         }
                         Button {
                             showingPicker = true
@@ -129,10 +129,10 @@ struct ImportView: View {
             Label("Switched browsers over the years?", systemImage: "arrow.triangle.branch")
                 .font(.headline)
             Text("""
-            Export and import from **every** browser you've used (Chrome, Firefox, Arc, …) — Rekey audits them together, so a password reused across them is caught.
+            Export and import from **every** browser you've used (Chrome, Firefox, Arc, …) — ReKey audits them together, so a password reused across them is caught.
 
             • **Fixing** opens each change page in your **default browser**, and that browser saves the new password. So set your macOS default (System Settings → Desktop & Dock → Default web browser) to the browser you want to keep using — it becomes your single, current store.
-            • **Old copies** left in the browsers you've stopped using don't disappear. Rekey never deletes them; you remove them yourself with the `rekey-cleanup` Terminal tool — each fixed item shows the exact command, and you can inventory a whole browser with `rekey-cleanup list --browser chrome`.
+            • **Old copies** left in the browsers you've stopped using don't disappear. ReKey never deletes them; you remove them yourself with the `rekey-cleanup` Terminal tool — each fixed item shows the exact command, and you can inventory a whole browser with `rekey-cleanup list --browser chrome`.
             """)
             .font(.callout)
             .foregroundStyle(.secondary)
@@ -144,7 +144,7 @@ struct ImportView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Import passwords")
                 .font(.largeTitle.bold())
-            Text("Export a CSV from Chrome, Arc, Firefox, or Apple Passwords, then import it here. Rekey reads only the files you choose — it never touches your browsers or Apple Passwords directly.")
+            Text("Export a CSV from Chrome, Arc, Firefox, or Apple Passwords, then import it here. ReKey reads only the files you choose — it never touches your browsers or Apple Passwords directly.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -256,9 +256,9 @@ struct ImportView: View {
 
     private var privacyNote: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("How Rekey protects you", systemImage: "lock.shield")
+            Label("How ReKey protects you", systemImage: "lock.shield")
                 .font(.headline)
-            Text("• Passwords stay in memory only — never written to disk, logged, or sent anywhere.\n• The only network calls are the Have I Been Pwned check (which sends just the first 5 characters of a SHA-1 hash) and resolving a single site's change-password page when you choose to fix it.\n• Rekey never changes a password for you. It opens the site's change page; you make the change, and your browser saves it.")
+            Text("• Passwords stay in memory only — never written to disk, logged, or sent anywhere.\n• The only network calls are the Have I Been Pwned check (which sends just the first 5 characters of a SHA-1 hash) and resolving a single site's change-password page when you choose to fix it.\n• ReKey never changes a password for you. It opens the site's change page; you make the change, and your browser saves it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

@@ -22,8 +22,8 @@ enum FallbackMapLoader {
     ///
     /// - Returns: domain → change-URL string map, or empty on any failure.
     static func loadBundled() -> [String: String] {
-        guard let url = RekeyResources.url(forResource: "FallbackMap", withExtension: "json",
-                                           moduleBundleName: "Rekey_ResetRouter", fallback: .module),
+        guard let url = ReKeyResources.url(forResource: "FallbackMap", withExtension: "json",
+                                           moduleBundleName: "ReKey_ResetRouter", fallback: .module),
               let data = try? Data(contentsOf: url),
               let doc = try? JSONDecoder().decode(Document.self, from: data)
         else {

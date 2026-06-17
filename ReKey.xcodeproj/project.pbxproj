@@ -7,14 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1A0000000000000000000A0A /* RekeyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000009A0 /* RekeyApp.swift */; };
-		1A0000000000000000000F0F /* RekeyUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000E0E /* RekeyUI */; };
+		1A0000000000000000000A0A /* ReKeyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000009A0 /* ReKeyApp.swift */; };
+		1A0000000000000000000F0F /* ReKeyUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000E0E /* ReKeyUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		1A0000000000000000000505 /* Rekey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rekey.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		1A00000000000000000009A0 /* RekeyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RekeyApp.swift; path = Sources/RekeyApp/RekeyApp.swift; sourceTree = "<group>"; };
-		1A0000000000000000000B0B /* Rekey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = Rekey.entitlements; path = App/Rekey.entitlements; sourceTree = "<group>"; };
+		1A0000000000000000000505 /* ReKey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReKey.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A00000000000000000009A0 /* ReKeyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ReKeyApp.swift; path = Sources/ReKeyApp/ReKeyApp.swift; sourceTree = "<group>"; };
+		1A0000000000000000000B0B /* ReKey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = ReKey.entitlements; path = App/ReKey.entitlements; sourceTree = "<group>"; };
 		1A0000000000000000000C0C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = App/Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -23,7 +23,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1A0000000000000000000F0F /* RekeyUI in Frameworks */,
+				1A0000000000000000000F0F /* ReKeyUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -41,7 +41,7 @@
 		1A0000000000000000000303 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				1A0000000000000000000505 /* Rekey.app */,
+				1A0000000000000000000505 /* ReKey.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -49,9 +49,9 @@
 		1A0000000000000000001616 /* App */ = {
 			isa = PBXGroup;
 			children = (
-				1A00000000000000000009A0 /* RekeyApp.swift */,
+				1A00000000000000000009A0 /* ReKeyApp.swift */,
 				1A0000000000000000000C0C /* Info.plist */,
-				1A0000000000000000000B0B /* Rekey.entitlements */,
+				1A0000000000000000000B0B /* ReKey.entitlements */,
 			);
 			name = App;
 			sourceTree = "<group>";
@@ -59,9 +59,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1A0000000000000000000404 /* Rekey */ = {
+		1A0000000000000000000404 /* ReKey */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1A0000000000000000001111 /* Build configuration list for PBXNativeTarget "Rekey" */;
+			buildConfigurationList = 1A0000000000000000001111 /* Build configuration list for PBXNativeTarget "ReKey" */;
 			buildPhases = (
 				1A0000000000000000000606 /* Sources */,
 				1A0000000000000000000707 /* Frameworks */,
@@ -71,12 +71,12 @@
 			);
 			dependencies = (
 			);
-			name = Rekey;
+			name = ReKey;
 			packageProductDependencies = (
-				1A0000000000000000000E0E /* RekeyUI */,
+				1A0000000000000000000E0E /* ReKeyUI */,
 			);
-			productName = Rekey;
-			productReference = 1A0000000000000000000505 /* Rekey.app */;
+			productName = ReKey;
+			productReference = 1A0000000000000000000505 /* ReKey.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -94,7 +94,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 1A0000000000000000001010 /* Build configuration list for PBXProject "Rekey" */;
+			buildConfigurationList = 1A0000000000000000001010 /* Build configuration list for PBXProject "ReKey" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -110,7 +110,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				1A0000000000000000000404 /* Rekey */,
+				1A0000000000000000000404 /* ReKey */,
 			);
 		};
 /* End PBXProject section */
@@ -130,7 +130,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1A0000000000000000000A0A /* RekeyApp.swift in Sources */,
+				1A0000000000000000000A0A /* ReKeyApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -193,7 +193,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = App/Rekey.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/ReKey.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -202,7 +202,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Rekey is a local-first password health auditor.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "ReKey is a local-first password health auditor.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -220,7 +220,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = App/Rekey.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/ReKey.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -229,7 +229,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Rekey is a local-first password health auditor.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "ReKey is a local-first password health auditor.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -246,7 +246,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		1A0000000000000000001010 /* Build configuration list for PBXProject "Rekey" */ = {
+		1A0000000000000000001010 /* Build configuration list for PBXProject "ReKey" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1A0000000000000000001212 /* Debug */,
@@ -255,7 +255,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1A0000000000000000001111 /* Build configuration list for PBXNativeTarget "Rekey" */ = {
+		1A0000000000000000001111 /* Build configuration list for PBXNativeTarget "ReKey" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1A0000000000000000001414 /* Debug */,
@@ -274,9 +274,9 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		1A0000000000000000000E0E /* RekeyUI */ = {
+		1A0000000000000000000E0E /* ReKeyUI */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = RekeyUI;
+			productName = ReKeyUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

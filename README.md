@@ -1,18 +1,18 @@
-# Rekey
+# ReKey
 
-A **local-first password health auditor** for macOS. Rekey imports CSVs you
+A **local-first password health auditor** for macOS. ReKey imports CSVs you
 export from Chrome, Arc, Firefox, and Apple Passwords, finds **reused** and
 **compromised** passwords, groups them alphabetically by site, generates strong
 replacements, and routes you to each site's change-password page. **Every change
-is approved by you, and Rekey never changes a password itself.**
+is approved by you, and ReKey never changes a password itself.**
 
 Bundle ID: `com.seanmandable.rekey` · macOS 15+ · Swift 6 · arm64.
 
 ---
 
-## What Rekey guarantees
+## What ReKey guarantees
 
-These are hard constraints of the **`Rekey.app`** auditor, enforced by the
+These are hard constraints of the **`ReKey.app`** auditor, enforced by the
 architecture. (There is one separate, opt-in command-line tool, `rekey-cleanup`,
 that *can* delete logins — see [Deleting stale logins](#deleting-stale-logins-rekey-cleanup)
 below. It is not part of the sandboxed app and the app never links it.)
@@ -47,37 +47,37 @@ redacted, so a password can never be accidentally logged or string-interpolated.
 There are two ways to build the app — an Xcode project and a pure-CLI script —
 both backed by the same Swift package, so the code and tests are identical.
 
-**Xcode** (`Rekey.xcodeproj`): open it and run the **Rekey** scheme (⌘R). The app
-target links the local Swift package's `RekeyUI` product and is configured for
-App Sandbox with `App/Rekey.entitlements`, bundle id `com.seanmandable.rekey`,
+**Xcode** (`ReKey.xcodeproj`): open it and run the **ReKey** scheme (⌘R). The app
+target links the local Swift package's `ReKeyUI` product and is configured for
+App Sandbox with `App/ReKey.entitlements`, bundle id `com.seanmandable.rekey`,
 macOS 15, Swift 6. (Xcode also auto-generates schemes for the package products;
-the shared **Rekey** scheme is the app.)
+the shared **ReKey** scheme is the app.)
 
 ```bash
 # Or build the app from the command line, no Xcode UI:
-xcodebuild -project Rekey.xcodeproj -scheme Rekey -configuration Release build
+xcodebuild -project ReKey.xcodeproj -scheme ReKey -configuration Release build
 
 # Run the full test suite (91 tests, no network — HIBP & reset are mocked)
 swift test
 
 # Run from source (dev)
-swift run Rekey
+swift run ReKey
 
-# Build the sandboxed, signed Rekey.app without Xcode at all
+# Build the sandboxed, signed ReKey.app without Xcode at all
 ./Scripts/build_app.sh
-open Rekey.app
+open ReKey.app
 ```
 
-`Scripts/build_app.sh` builds the release binary, assembles `Rekey.app`, copies
+`Scripts/build_app.sh` builds the release binary, assembles `ReKey.app`, copies
 the vendored resource bundles into `Contents/Resources`, and ad-hoc codesigns it
-with `App/Rekey.entitlements` — useful for a no-Xcode pipeline. (Notarization and
+with `App/ReKey.entitlements` — useful for a no-Xcode pipeline. (Notarization and
 Sparkle auto-update are out of scope for this build.)
 
 You can sanity-check the packaged bundle's resource loading without opening a
 window:
 
 ```bash
-Rekey.app/Contents/MacOS/Rekey --selftest
+ReKey.app/Contents/MacOS/ReKey --selftest
 ```
 
 ---
@@ -87,20 +87,20 @@ Rekey.app/Contents/MacOS/Rekey --selftest
 | Browser | How to export |
 |---|---|
 | **Chrome** | Settings → Autofill → Password Manager → ⋮ → Export passwords |
-| **Arc / Brave / Edge / Opera / Vivaldi** | Same as Chrome — they're all Chromium and export an identical CSV. Rekey can't tell them apart from the file, so pick the right one in the **"label it"** menu before importing. Any other Chromium browser works too (choose *Chromium*). |
+| **Arc / Brave / Edge / Opera / Vivaldi** | Same as Chrome — they're all Chromium and export an identical CSV. ReKey can't tell them apart from the file, so pick the right one in the **"label it"** menu before importing. Any other Chromium browser works too (choose *Chromium*). |
 | **Firefox** (and forks: LibreWolf, Waterfox, Tor Browser) | about:logins → ⋯ → Export Logins. Forks share Firefox's format and are detected automatically. |
 | **Apple Passwords / Safari** | Passwords app → File → Export All Passwords (or ⋯ → Export) |
-| **Anything else** | If a CSV has recognizable `url`/`username`/`password` columns, Rekey maps them fuzzily; truly unknown layouts fall back to manual column mapping. |
+| **Anything else** | If a CSV has recognizable `url`/`username`/`password` columns, ReKey maps them fuzzily; truly unknown layouts fall back to manual column mapping. |
 
 ⚠️ A plaintext password CSV in `~/Downloads` is the single biggest real-world
-risk. After importing, use Rekey's **Securely delete** button (it overwrites the
+risk. After importing, use ReKey's **Securely delete** button (it overwrites the
 file's bytes, then unlinks it).
 
 **Auto-import (optional).** On the Import screen you can *Choose folder…* to watch
-a folder (e.g. Downloads). Rekey then imports any recognized password CSV that
+a folder (e.g. Downloads). ReKey then imports any recognized password CSV that
 appears there automatically (and only recognized ones — a random CSV is left
 alone), then prompts you to securely delete it. You still export manually — there
-is no API to automate the export, and Rekey deliberately doesn't read your
+is no API to automate the export, and ReKey deliberately doesn't read your
 browser stores directly. The watched folder is remembered across launches via a
 security-scoped bookmark; *Stop* forgets it.
 
@@ -156,11 +156,11 @@ so the app never broadcasts your whole account list by probing every domain.
 
 ## Switching your primary browser (consolidating)
 
-Used Chrome, then Firefox, now Arc? Rekey is browser-agnostic. The consolidation
+Used Chrome, then Firefox, now Arc? ReKey is browser-agnostic. The consolidation
 flow:
 
 1. **Audit everything.** Export a CSV from *each* browser you've used and import
-   them all (tag Chromium files with the right browser in the dropdown). Rekey
+   them all (tag Chromium files with the right browser in the dropdown). ReKey
    merges them, so reuse across browsers is caught.
 2. **Fix into your new primary.** Choose where change pages open with the
    **"Open change pages in:"** picker at the top of the Fix Queue (Default browser,
@@ -170,7 +170,7 @@ flow:
    ever saved in an old browser, you may need to sign in once in the new one to
    reach its change page.)
 3. **Clean up the old browsers.** Open the **Clean Up** tab, pick the browser
-   you're keeping, and Rekey lists every site saved in your *other* browsers —
+   you're keeping, and ReKey lists every site saved in your *other* browsers —
    pre-selecting the ones that also live in the browser you kept (true stale
    duplicates, safe to remove) and flagging the ones that exist *only* in an old
    browser (unchecked, since deleting loses the only copy). It generates one
@@ -219,7 +219,7 @@ duplicate with the dead password. The browser's save dialog can't remove that;
 deletion is a browser-local action. `rekey-cleanup` is a **separate, opt-in
 command-line tool** for exactly this.
 
-It is deliberately **not** part of `Rekey.app`: the app stays sandboxed and never
+It is deliberately **not** part of `ReKey.app`: the app stays sandboxed and never
 touches any store. (After you mark a fix *done*, the fix-queue card shows an
 optional "Old login still saved?" section with the manual steps and a
 copy-paste `rekey-cleanup` command pre-filled for that site — guidance only; the
@@ -266,7 +266,7 @@ swift run rekey-cleanup delete --browser chrome --site github.com --username old
 ```
 
 > **On the relaxed constraint:** the original spec forbade *all* store writes.
-> That rule still holds for `Rekey.app`. This tool is the explicit, isolated
+> That rule still holds for `ReKey.app`. This tool is the explicit, isolated
 > exception — and even here, "no corruption" can't be *guaranteed* (browser
 > sync can resurrect a deleted entry; recent Chrome app-bound encryption is
 > hardening this surface), so the guardrails above are risk *reduction*, and the
@@ -283,12 +283,12 @@ Sources/
   PasswordGenerator/ CSPRNG generator + diceware passphrases                            (+ EFF wordlist)
   ResetRouter/       well-known + curated fallback, lazy by construction                (+ FallbackMap)
   FixQueue/          preview/approve state machine + clipboard hygiene
-  RekeyUI/           SwiftUI: Import, Findings, Fix Queue (no logic)
-  RekeyApp/          @main entry point
+  ReKeyUI/           SwiftUI: Import, Findings, Fix Queue (no logic)
+  ReKeyApp/          @main entry point
   BrowserStore/      OPT-IN, separate: decrypt-free Chromium/Firefox login delete (not linked by the app)
-  RekeyCleanup/      OPT-IN, separate: the `rekey-cleanup` CLI
+  ReKeyCleanup/      OPT-IN, separate: the `rekey-cleanup` CLI
 Tests/               Swift Testing suites + synthetic fixtures (Tests/Fixtures)
-App/                 Info.plist, Rekey.entitlements
+App/                 Info.plist, ReKey.entitlements
 Scripts/build_app.sh assembles + signs the sandboxed .app
 ```
 

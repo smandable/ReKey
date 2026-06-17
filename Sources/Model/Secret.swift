@@ -3,7 +3,7 @@ import CryptoKit
 
 /// A wrapper around a plaintext password value.
 ///
-/// Design goals (see Rekey hard constraints):
+/// Design goals (see ReKey hard constraints):
 /// - The value is **never** revealed by `description` / `debugDescription`, so
 ///   `print(secret)`, `"\(secret)"`, logging, and `os_log` interpolation all
 ///   emit a redacted placeholder instead of the password. Access to the real

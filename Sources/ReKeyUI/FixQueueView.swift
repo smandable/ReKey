@@ -117,15 +117,15 @@ struct FixQueueView: View {
     private var runHelp: some View {
         DisclosureGroup(isExpanded: $showRunHelp) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Rekey can't run this itself — deleting browser stores is exactly what the sandboxed app must not do, so `rekey-cleanup` is a separate tool you run in Terminal.")
+                Text("ReKey can't run this itself — deleting browser stores is exactly what the sandboxed app must not do, so `rekey-cleanup` is a separate tool you run in Terminal.")
                     .fixedSize(horizontal: false, vertical: true)
-                Text("1. Install the tool once, from the Rekey project folder:")
+                Text("1. Install the tool once, from the ReKey project folder:")
                 codeLine("swift build -c release --product rekey-cleanup")
                 codeLine("sudo cp .build/release/rekey-cleanup /usr/local/bin/")
                 Text("2. Quit the browser(s) the script touches.")
                 Text("3. Run a saved script, or paste a single copied line:")
                 codeLine("sh ~/Downloads/rekey-cleanup.sh")
-                Text("Not installing? Run a line from the Rekey folder with `swift run` instead, e.g. `swift run rekey-cleanup delete --browser arc --site bjs.com --confirm`.")
+                Text("Not installing? Run a line from the ReKey folder with `swift run` instead, e.g. `swift run rekey-cleanup delete --browser arc --site bjs.com --confirm`.")
                     .fixedSize(horizontal: false, vertical: true)
             }
             .font(.caption).foregroundStyle(.secondary)
@@ -216,7 +216,7 @@ struct FixQueueView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Fix queue").font(.largeTitle.bold())
-            Text("Review each change, then Copy & open: Rekey copies the new password and opens the site's change page — you make the change there, and your browser offers to save it. Rekey never changes a password for you.")
+            Text("Review each change, then Copy & open: ReKey copies the new password and opens the site's change page — you make the change there, and your browser offers to save it. ReKey never changes a password for you.")
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 Image(systemName: "safari")
@@ -226,7 +226,7 @@ struct FixQueueView: View {
                 }
                 .labelsHidden()
                 .frame(maxWidth: 220)
-                .help("Choose which browser Rekey opens change-password pages in. 'Default browser' follows your macOS setting.")
+                .help("Choose which browser ReKey opens change-password pages in. 'Default browser' follows your macOS setting.")
             }
             .font(.callout)
             .padding(.top, 2)
@@ -256,7 +256,7 @@ private struct FixCard: View {
     @State private var showCleanup = false
     @State private var copiedCommand = false
     /// Gate on "Mark done": the user confirms the browser actually saved the new
-    /// password, since Rekey holds it in memory only and can't recover it after.
+    /// password, since ReKey holds it in memory only and can't recover it after.
     @State private var confirmedSaved = false
     /// Which password field was just copied, for a transient checkmark.
     @State private var copiedField: CopiedField?
@@ -338,14 +338,14 @@ private struct FixCard: View {
     }
 
     /// Guidance (only) for removing a stale old saved login after a fix is done.
-    /// Rekey never deletes it — this is manual steps plus a copy-paste command
+    /// ReKey never deletes it — this is manual steps plus a copy-paste command
     /// for the separate `rekey-cleanup` tool.
     @ViewBuilder
     private var staleLoginGuidance: some View {
         let source = model.credential(item.credentialID)?.source ?? .unknown
         DisclosureGroup(isExpanded: $showCleanup) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("If your browser saved a **new** entry instead of updating, an old login for **\(item.site)** with the previous password may still be saved. Rekey never deletes it for you — here's how:")
+                Text("If your browser saved a **new** entry instead of updating, an old login for **\(item.site)** with the previous password may still be saved. ReKey never deletes it for you — here's how:")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -356,7 +356,7 @@ private struct FixCard: View {
                 if let command = StaleLoginGuidance.cliCommand(for: source,
                                                                domain: item.site,
                                                                username: item.username) {
-                    Text("Or copy this and run it yourself in **Terminal** (Rekey never runs it). As written it just previews; to actually delete, quit \(source.displayName), then re-run it with `--confirm` added:")
+                    Text("Or copy this and run it yourself in **Terminal** (ReKey never runs it). As written it just previews; to actually delete, quit \(source.displayName), then re-run it with `--confirm` added:")
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(alignment: .top) {
@@ -618,7 +618,7 @@ private struct FixCard: View {
     /// Shown in the `.opened` state: the new password lives only on this card and
     /// is gone once the item is done — so confirm the browser saved it first.
     private var savedReminder: some View {
-        Label("Change it on the site, then confirm your browser saved the **new** password (check its saved-passwords list). After you mark this done and reopen Rekey, this value is gone — Rekey can't recover it. Need it again? Use the copy button on the New row.",
+        Label("Change it on the site, then confirm your browser saved the **new** password (check its saved-passwords list). After you mark this done and reopen ReKey, this value is gone — ReKey can't recover it. Need it again? Use the copy button on the New row.",
               systemImage: "exclamationmark.triangle.fill")
             .font(.caption).foregroundStyle(.orange)
             .fixedSize(horizontal: false, vertical: true)
@@ -649,7 +649,7 @@ private struct FixCard: View {
                 .help("Changed your mind? Return this to pending — you can Skip it or Copy & open again later.")
                 Toggle("Browser saved it", isOn: $confirmedSaved)
                     .toggleStyle(.checkbox).font(.caption)
-                    .help("Confirm your browser actually saved the new password before marking done — Rekey can't recover it afterward.")
+                    .help("Confirm your browser actually saved the new password before marking done — ReKey can't recover it afterward.")
                 Button("Mark done") { model.recordFixDone(item) }
                     .buttonStyle(.borderedProminent)
                     .disabled(!confirmedSaved)

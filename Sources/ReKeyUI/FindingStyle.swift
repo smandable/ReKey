@@ -134,9 +134,9 @@ struct ResetSourceBadge: View {
         case .wellKnown:
             return "This site exposes the standard change-password URL — the same mechanism Safari and Chrome use."
         case .fallbackMap:
-            return "Resolved from Rekey's curated list of change-password pages."
+            return "Resolved from ReKey's curated list of change-password pages."
         case .siteRoot:
-            return "Rekey couldn't find a change-password page. It'll open the site root — look in account or security settings."
+            return "ReKey couldn't find a change-password page. It'll open the site root — look in account or security settings."
         }
     }
 }

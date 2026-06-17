@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import RekeyUI
+@testable import ReKeyUI
 
 // Serialized: these tests mutate the shared UserDefaults key the preference uses,
 // so they must not run in parallel with each other.

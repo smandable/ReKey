@@ -26,11 +26,11 @@ public struct RootView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
-            .navigationTitle("Rekey")
+            .navigationTitle("ReKey")
         } detail: {
             detail
         }
-        // Float above the browser change page Rekey opens, so it isn't buried.
+        // Float above the browser change page ReKey opens, so it isn't buried.
         .background(WindowLevelModifier(keepOnTop: keepOnTop))
     }
 

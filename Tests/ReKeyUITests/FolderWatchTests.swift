@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import RekeyUI
+@testable import ReKeyUI
 
 private func tempDir() -> URL {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("rekey-fw-\(UUID().uuidString)")

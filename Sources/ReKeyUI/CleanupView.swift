@@ -40,7 +40,7 @@ struct CleanupView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Clean up old browsers").font(.largeTitle.bold())
-            Text("After you've migrated to one browser, remove the stale logins left in the others. Pick the browser you're keeping; Rekey lists the sites saved in your *other* browsers and builds a `rekey-cleanup` script you review and run. **Rekey never deletes anything itself** — the script does, after you quit those browsers, and it backs up each store first. (Apple Passwords isn't supported — no delete API.)")
+            Text("After you've migrated to one browser, remove the stale logins left in the others. Pick the browser you're keeping; ReKey lists the sites saved in your *other* browsers and builds a `rekey-cleanup` script you review and run. **ReKey never deletes anything itself** — the script does, after you quit those browsers, and it backs up each store first. (Apple Passwords isn't supported — no delete API.)")
                 .foregroundStyle(.secondary)
         }
     }

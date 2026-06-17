@@ -150,7 +150,7 @@ public final class AppModel {
     /// can verify the change saved. Hashes only — no passwords. Persisted.
     /// Note: unsalted SHA-256, so a weak/known password is in principle
     /// offline-guessable from the hash. Accepted: this host already holds the
-    /// plaintext store Rekey imported, and the hash is only an equality token —
+    /// plaintext store ReKey imported, and the hash is only an equality token —
     /// never the password — so it leaks nothing the host doesn't already have.
     private var fixSaveRecords: [String: FixSaveRecord] = [:]
     /// Usernames the user types for blank-username logins (a recognition label —
@@ -159,7 +159,7 @@ public final class AppModel {
     /// must match the browser's actual stored (blank) username.
     ///
     /// Privacy: these labels (often an email) persist in cleartext in UserDefaults
-    /// — the one user-entered value Rekey stores in the clear. Accepted: it's the
+    /// — the one user-entered value ReKey stores in the clear. Accepted: it's the
     /// user's own email for an account whose plaintext store this host already
     /// holds, it's never a password, and labels surviving a re-import is the
     /// feature's whole point.
@@ -582,7 +582,7 @@ public final class AppModel {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Watch"
-        panel.message = "Choose a folder to watch for exported password CSVs (e.g. Downloads). Rekey auto-imports recognized exports as they appear."
+        panel.message = "Choose a folder to watch for exported password CSVs (e.g. Downloads). ReKey auto-imports recognized exports as they appear."
         if panel.runModal() == .OK, let url = panel.url {
             startWatching(url)
         }
