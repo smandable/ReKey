@@ -20,7 +20,7 @@ func run() -> Int32 {
     let raw = Array(CommandLine.arguments.dropFirst())
     var command: String?
     var opts: [String: [String]] = [:]
-    let flagOnly: Set<String> = ["--confirm", "--help", "-h"]
+    let flagOnly: Set<String> = ["--confirm", "--help", "-h", "--no-username"]
 
     var i = 0
     while i < raw.count {
@@ -204,12 +204,18 @@ func run() -> Int32 {
             var byID: [String: StoredLogin] = [:]
             var sitesTouched = Set<String>()
             var matchedTargets = 0
+            // --no-username: delete ONLY the no-username rows on each site (a
+            // readable Chromium plaintext blank), never the named siblings — the
+            // "force the manual no-username removals" path. Skips Firefox (its
+            // usernames are encrypted, so blank can't be told from named).
+            let noUsername = flag("no-username")
             for t in targets {
                 // LoginFilter.site is a broad origin SUBSTRING match, so re-anchor
                 // each hit to the target host (or a subdomain of it) — never delete
                 // a merely-similar domain (e.g. "nodepositcasino.com" for "casino.com").
                 let found = try store.list(matching: LoginFilter(site: t.site, username: t.username))
                     .filter { PurgeTargets.originBelongsToSite($0.origin, site: t.site) }
+                    .filter { !noUsername || (!$0.usernameIsEncrypted && ($0.username ?? "").isEmpty) }
                 if !found.isEmpty {
                     matchedTargets += 1
                     sitesTouched.insert(t.site)

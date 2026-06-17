@@ -105,6 +105,20 @@ struct ImportView: View {
                         Label(message, systemImage: "checkmark.circle")
                             .font(.caption).foregroundStyle(.secondary)
                     }
+                } else if let remembered = model.rememberedWatchFolder {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Auto-import paused").font(.callout.weight(.medium))
+                            Text("ReKey lost its grant for **\(remembered.lastPathComponent)** (folder access doesn't survive a re-signed or updated app). Re-watch to resume — the picker is pre-pointed there.")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Button { model.chooseWatchFolder() } label: {
+                            Label("Re-watch \(remembered.lastPathComponent)", systemImage: "eye")
+                        }
+                        .controlSize(.small)
+                    }
                 } else {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {

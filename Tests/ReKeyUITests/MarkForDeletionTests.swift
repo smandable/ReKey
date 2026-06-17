@@ -145,6 +145,49 @@ struct MarkForDeletionTests {
         #expect(script.contains("rekey-cleanup list --browser chrome --site example.com"))
     }
 
+    @Test("Appendable script is just purge blocks — no shebang, tally, or grand total")
+    func appendableScript() throws {
+        clear(); defer { clear() }
+        let model = AppModel()
+        model.chromiumSource = .chrome
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")
+        let cred = try #require(model.allCredentials.first)
+        model.markForDeletion(cred)
+        let body = model.deletionAppendableScript(confirm: true)
+        #expect(body.contains("rekey-cleanup purge --browser chrome --confirm <<'REKEY_TARGETS'"))   // no --tally
+        #expect(body.contains("github.com\tsean"))
+        #expect(!body.contains("#!/bin/sh"))     // no header
+        #expect(!body.contains("REKEY_TALLY"))   // no tally machinery
+        #expect(!body.contains("awk"))           // no grand total
+    }
+
+    @Test("forceManual emits a --no-username purge block for a Chromium no-username site")
+    func forceManualScript() throws {
+        clear(); defer { clear() }
+        let csv = """
+        name,url,username,password,note
+        Example,https://example.com/,alice,pw,
+        Example,https://example.com/,,pw2,
+        """
+        let model = AppModel()
+        model.chromiumSource = .chrome
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")
+        let blank = try #require(model.allCredentials.first { $0.username.isEmpty })
+        model.markForDeletion(blank)
+        #expect(model.deletionForceableManualSiteCount() == 1)
+
+        // Off: stays a manual id-step.
+        let plain = model.deletionCleanupScript(confirm: true, forceManual: false)
+        #expect(!plain.contains("--no-username"))
+        #expect(plain.contains("Manual deletion"))
+
+        // On: a precise --no-username purge block, and no leftover manual section.
+        let forced = model.deletionCleanupScript(confirm: true, forceManual: true)
+        #expect(forced.contains("rekey-cleanup purge --browser chrome --no-username --confirm --tally \"$REKEY_TALLY\" <<'REKEY_TARGETS'"))
+        #expect(forced.contains("example.com"))
+        #expect(!forced.contains("Manual deletion"))
+    }
+
     @Test("Firefox per-site classification is independent across sites")
     func firefoxMultiSite() {
         // x.com: 1 of 2 marked → manual. y.com: 1 of 1 marked → safe.

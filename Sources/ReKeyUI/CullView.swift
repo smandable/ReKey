@@ -13,6 +13,8 @@ struct CullView: View {
     @State private var excluded: Set<BrowserSource> = []   // browsers hidden from the list (empty = all shown)
     @State private var search = ""
     @State private var confirm = true   // default to a runnable (deleting) script, like the Fix Queue cleanup
+    @State private var forceManual = false   // force-delete the no-username manual sites precisely
+    @State private var hideMarked = false    // hide already-marked logins while hunting for more
     @State private var copied = false
     @State private var copyGen = 0   // invalidates a pending "Copied" reset when a newer copy/toggle happens
     @State private var showScript = false
@@ -29,6 +31,7 @@ struct CullView: View {
         return model.allCredentials
             .filter { $0.source.cleanupSupported }
             .filter { !excluded.contains($0.source) }
+            .filter { !hideMarked || !model.isMarkedForDeletion($0) }
             .filter { q.isEmpty || $0.site.lowercased().contains(q) || $0.username.lowercased().contains(q) }
             .sorted { ($0.site, $0.username, $0.source.displayName) < ($1.site, $1.username, $1.source.displayName) }
     }
@@ -79,8 +82,7 @@ struct CullView: View {
     // MARK: - Controls
 
     private var controls: some View {
-        let markedHere = shown.filter { model.isMarkedForDeletion($0) }.count
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             // Browser multi-select: tap a pill to include/exclude that browser, so
             // you can cull e.g. Chrome + Firefox while leaving Arc untouched.
             if cullableBrowsers.count > 1 {
@@ -107,13 +109,16 @@ struct CullView: View {
                 Spacer()
             }
 
-            HStack(spacing: 8) {
-                Text("\(shown.count) shown · \(markedHere) marked")
+            HStack(spacing: 12) {
+                Text("\(shown.count) shown · \(model.markedForDeletionCount) marked")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("Hide marked", isOn: $hideMarked)
+                    .toggleStyle(.checkbox).font(.caption)
+                    .help("Hide logins you've already marked, so you can keep searching for more without seeing the ones you've handled.")
                 Spacer()
                 Button("Mark all \(shown.count) shown") { model.markForDeletion(shown) }
                     .controlSize(.small)
-                    .disabled(shown.isEmpty || markedHere == shown.count)
+                    .disabled(shown.isEmpty || shown.allSatisfy { model.isMarkedForDeletion($0) })
                     .help("Mark every login currently shown (the included browsers + search). Handy for a near-empty browser: mark all, then un-mark the few you keep.")
                 Button("Clear all marks") { model.unmarkAllForDeletion() }
                     .controlSize(.small)
@@ -152,7 +157,8 @@ struct CullView: View {
     private var scriptPanel: some View {
         let marked = model.markedForDeletionCount
         let manual = model.deletionManualSiteCount()
-        let script = model.deletionCleanupScript(confirm: confirm)
+        let forceable = model.deletionForceableManualSiteCount()
+        let script = model.deletionCleanupScript(confirm: confirm, forceManual: forceManual)
         return GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 Label("\(marked) login\(marked == 1 ? "" : "s") marked for deletion", systemImage: "trash")
@@ -160,8 +166,14 @@ struct CullView: View {
                 Text("Save and run this `rekey-cleanup.sh` yourself — one batched command per browser deletes the marked logins and prints a per-browser summary. Quit the affected browser(s) first; the tool backs up each store before deleting and won't run while a browser is open.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if manual > 0 {
-                    Label("\(manual) marked site(s) need manual removal — a login you marked has no username and the site has other logins, so a site delete would take them too. The script shows how to remove just the one you marked by id (it isn't auto-included in Copy/Save).", systemImage: "exclamationmark.triangle.fill")
+                if forceable > 0 {
+                    Toggle(isOn: $forceManual) {
+                        Text("Force \(forceable) no-username removal\(forceable == 1 ? "" : "s") — logins you marked that have no username on a site with named logins. On: the script deletes just the no-username row(s) precisely (named logins left alone). Off: they're listed as a manual id-step.")
+                    }
+                    .font(.caption)
+                }
+                if manual - forceable > 0 {
+                    Label("\(manual - forceable) Firefox site(s) still need manual removal by id — Firefox encrypts usernames, so the tool can't single out the no-username row. See the script's comments.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption).foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -176,6 +188,10 @@ struct CullView: View {
                         Label("Save as rekey-cleanup.sh…", systemImage: "square.and.arrow.down")
                     }
                     .help("Write the deletion script to a .sh file you name, then run it in Terminal.")
+                    Button { appendToExisting() } label: {
+                        Label("Add to existing file…", systemImage: "doc.badge.plus")
+                    }
+                    .help("Append these purge commands to a rekey-cleanup.sh you saved before, so culls from several sessions run from one file. Appended blocks print their own per-browser summary; purge is idempotent, so a re-listed site just reports \"already gone\".")
                     Spacer()
                 }
                 DisclosureGroup(isExpanded: $showScript) {
@@ -260,6 +276,23 @@ struct CullView: View {
         if panel.runModal() == .OK, let url = panel.url {
             try? script.write(to: url, atomically: true, encoding: .utf8)
         }
+    }
+
+    /// Append this session's purge command blocks (no header/total) to a script
+    /// the user already saved, so culls from several sessions accumulate in one file.
+    private func appendToExisting() {
+        let body = model.deletionAppendableScript(confirm: confirm, forceManual: forceManual)
+        guard !body.isEmpty else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a rekey-cleanup.sh to append these purge commands to."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var out = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
+        out += "\n# --- appended by ReKey Cull ---\n" + body + "\n"
+        try? out.write(to: url, atomically: true, encoding: .utf8)
     }
 
 }
