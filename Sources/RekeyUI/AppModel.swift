@@ -447,8 +447,16 @@ public final class AppModel {
     public func importFile(at url: URL) {
         let didScope = url.startAccessingSecurityScopedResource()
         defer { if didScope { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { return }
+        guard let data = try? Data(contentsOf: url) else {
+            auditError = "Couldn't read “\(url.lastPathComponent)” — the file may have moved or be unreadable."
+            return
+        }
         ingest(data: data, url: url, displayName: url.lastPathComponent)
+    }
+
+    /// Surface a file-picker failure (e.g. a permissions error) — set by the view.
+    public func reportImportError(_ message: String) {
+        auditError = message
     }
 
     /// Import raw CSV bytes (e.g. drag-and-drop), without a source file on disk.
@@ -464,8 +472,9 @@ public final class AppModel {
             verifyFixes(against: result.source)
             // A fresh import invalidates the previous audit.
             report = nil
+            auditError = nil                 // a good import clears any prior error
         } catch {
-            auditError = "Couldn't import \(displayName): \(error)"
+            auditError = "Couldn't import “\(displayName)”: \(error.localizedDescription). Make sure it's an unmodified password CSV exported from a browser or Apple Passwords."
         }
     }
 
@@ -746,9 +755,12 @@ public final class AppModel {
     public func enqueueAllFlagged() async {
         guard let report else { return }
         let g = currentGenerationChoice()
-        // Append every flagged credential up front so the whole batch shows at once…
+        // Append every flagged credential up front so the whole batch shows at once.
+        // Mirror the fix-progress denominator — finding OR weak, minus ignored/fixed —
+        // so "Add all" actually clears the bar instead of silently dropping weak ones.
         let ids = allCredentials
-            .filter { report.findingsByCredential[$0.id] != nil && !isFixed($0) }
+            .filter { (report.findingsByCredential[$0.id] != nil || report.weak.contains($0.id))
+                      && !isFixed($0) && !isIgnored($0) }
             .compactMap {
                 try? fixQueue.appendPending(credential: $0,
                                             policy: g.passphrase ? nil : g.policy,

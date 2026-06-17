@@ -13,6 +13,7 @@ struct ImportView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                importErrorBanner
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
@@ -58,9 +59,33 @@ struct ImportView: View {
             allowedContentTypes: [.commaSeparatedText, .text, UTType(filenameExtension: "csv") ?? .data],
             allowsMultipleSelection: true
         ) { result in
-            if case let .success(urls) = result {
+            switch result {
+            case .success(let urls):
                 for url in urls { model.importFile(at: url) }
+            case .failure(let error):
+                model.reportImportError("Couldn't open that file: \(error.localizedDescription)")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var importErrorBanner: some View {
+        if let error = model.auditError {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text(error)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button { model.auditError = nil } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.borderless).foregroundStyle(.secondary)
+                .help("Dismiss")
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 

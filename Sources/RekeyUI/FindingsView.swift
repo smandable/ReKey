@@ -104,11 +104,16 @@ struct FindingsView: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 8) {
-                Picker("Sort", selection: $sortByPriority) {
-                    Text("Priority").tag(true)
-                    Text("A–Z").tag(false)
+                // Buttons, not a segmented Picker (inert on this macOS — same quirk
+                // as the sidebar List and the generator style selector).
+                HStack(spacing: 0) {
+                    sortButton("Priority", selected: sortByPriority) { sortByPriority = true }
+                    sortButton("A–Z", selected: !sortByPriority) { sortByPriority = false }
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 150)
+                .frame(width: 150)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
                 Toggle("Only issues", isOn: $onlyIssues).toggleStyle(.switch)
                 Toggle("Show passwords", isOn: $showPasswords).toggleStyle(.switch)
                 if ignored > 0 {
@@ -152,6 +157,20 @@ struct FindingsView: View {
         }
         return keys.count
     }
+    /// One segment of the Buttons-based sort selector.
+    private func sortButton(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                .background(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     /// Distinct accounts saved across 2+ different browsers (don't sync).
     private func multiBrowserAccountCount(_ report: AuditReport) -> Int {
         var keys = Set<String>()
