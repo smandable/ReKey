@@ -41,6 +41,7 @@ public struct FixedCleanupPlan: Sendable {
 /// whether the change actually saved — only hashes are kept, never a password,
 /// matching the rest of the persisted progress.
 private struct FixSaveRecord: Sendable {
+    let progressKey: String
     let oldHash: String
     let newHash: String
     let source: String
@@ -157,10 +158,16 @@ public final class AppModel {
     /// persisted. DISPLAY ONLY: it never flows into the fix or the cleanup, which
     /// must match the browser's actual stored (blank) username.
     private var usernameOverrides: [String: String] = [:]
-    /// Fixed accounts whose most recent re-import of their source still shows the
-    /// OLD password (not the new) — the change likely didn't save. Derived on
-    /// import; not persisted.
+    /// Save-verification keys (progressKey + source) whose most recent re-import of
+    /// that source still shows the OLD password (not the new) — the change likely
+    /// didn't save. Derived on import; not persisted.
     public private(set) var unsavedFixKeys: Set<String> = []
+
+    /// Composite key for a save record / unsaved flag: account + source, so the
+    /// same account fixed in two browsers is tracked separately.
+    private static func saveRecordKey(_ progressKey: String, _ sourceRaw: String) -> String {
+        "\(progressKey)\u{1}\(sourceRaw)"
+    }
 
     /// Browser-independent identity for "this account is fixed" — changing the
     /// password on the site resolves it regardless of which browser saved it.
@@ -253,12 +260,16 @@ public final class AppModel {
         // re-import of this source can confirm the change actually saved. Don't
         // evaluate now: the current import predates the fix and still shows the old
         // password — it's checked when the source is next re-imported.
-        fixSaveRecords[key] = FixSaveRecord(
+        // Keyed by account AND source, so the same account fixed in two browsers
+        // verifies each independently instead of the later fix overwriting the first.
+        let recKey = Self.saveRecordKey(key, cred.source.rawValue)
+        fixSaveRecords[recKey] = FixSaveRecord(
+            progressKey: key,
             oldHash: cred.password.sha256().base64EncodedString(),
             newHash: item.newPassword.sha256().base64EncodedString(),
             source: cred.source.rawValue
         )
-        unsavedFixKeys.remove(key)
+        unsavedFixKeys.remove(recKey)
         saveProgress()
     }
 
@@ -277,23 +288,30 @@ public final class AppModel {
     public func unmarkFixed(for credential: ImportedCredential) {
         let key = Self.progressKey(for: credential)
         completedKeys.remove(key)
-        fixSaveRecords.removeValue(forKey: key)
-        unsavedFixKeys.remove(key)
+        // Drop this account's save records / flags across every source.
+        for recKey in fixSaveRecords.filter({ $0.value.progressKey == key }).map(\.key) {
+            fixSaveRecords.removeValue(forKey: recKey)
+            unsavedFixKeys.remove(recKey)
+        }
         saveProgress()
     }
 
-    /// Whether a fixed account's latest import still shows the OLD password — the
-    /// change may not have saved. Surfaced as a warning (with Reopen) in Findings.
+    /// Whether this credential's account-in-this-browser still shows the OLD
+    /// password after a fix — the change may not have saved. Surfaced as a warning
+    /// (with Reopen) in Findings.
     public func fixMaySaveFailed(_ credential: ImportedCredential) -> Bool {
-        unsavedFixKeys.contains(Self.progressKey(for: credential))
+        unsavedFixKeys.contains(Self.saveRecordKey(Self.progressKey(for: credential), credential.source.rawValue))
     }
 
-    /// How many fixed accounts present in the current import look maybe-unsaved —
+    /// How many distinct accounts present in the current import look maybe-unsaved —
     /// for the Findings banner.
     public var unsavedFixCount: Int {
         guard !unsavedFixKeys.isEmpty else { return 0 }
-        let present = Set(allCredentials.map { Self.progressKey(for: $0) })
-        return unsavedFixKeys.intersection(present).count
+        var accounts = Set<String>()
+        for cred in allCredentials where fixMaySaveFailed(cred) {
+            accounts.insert(Self.progressKey(for: cred))
+        }
+        return accounts.count
     }
 
     private static func usernameOverrideKey(for cred: ImportedCredential) -> String {
@@ -323,8 +341,8 @@ public final class AppModel {
         UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
         UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)
         UserDefaults.standard.set(Array(ignoredKeys), forKey: ignoredDefaultsKey)
-        // [progressKey: [oldHash, newHash, source]] — plist-native, hashes only.
-        UserDefaults.standard.set(fixSaveRecords.mapValues { [$0.oldHash, $0.newHash, $0.source] },
+        // [recKey: [progressKey, oldHash, newHash, source]] — plist-native, hashes only.
+        UserDefaults.standard.set(fixSaveRecords.mapValues { [$0.progressKey, $0.oldHash, $0.newHash, $0.source] },
                                   forKey: saveRecordsDefaultsKey)
         UserDefaults.standard.set(usernameOverrides, forKey: usernameOverridesDefaultsKey)
     }
@@ -334,8 +352,14 @@ public final class AppModel {
         skippedKeys = Set(UserDefaults.standard.stringArray(forKey: skippedDefaultsKey) ?? [])
         ignoredKeys = Set(UserDefaults.standard.stringArray(forKey: ignoredDefaultsKey) ?? [])
         let raw = UserDefaults.standard.dictionary(forKey: saveRecordsDefaultsKey) as? [String: [String]] ?? [:]
-        fixSaveRecords = raw.compactMapValues {
-            $0.count == 3 ? FixSaveRecord(oldHash: $0[0], newHash: $0[1], source: $0[2]) : nil
+        fixSaveRecords = [:]
+        for (storedKey, v) in raw {
+            if v.count == 4 {                       // current: key is recKey, value carries progressKey
+                fixSaveRecords[storedKey] = FixSaveRecord(progressKey: v[0], oldHash: v[1], newHash: v[2], source: v[3])
+            } else if v.count == 3 {                // legacy: key WAS the progressKey, value [old,new,source]
+                let recKey = Self.saveRecordKey(storedKey, v[2])
+                fixSaveRecords[recKey] = FixSaveRecord(progressKey: storedKey, oldHash: v[0], newHash: v[1], source: v[2])
+            }
         }
         usernameOverrides = UserDefaults.standard.dictionary(forKey: usernameOverridesDefaultsKey) as? [String: String] ?? [:]
     }
@@ -431,12 +455,13 @@ public final class AppModel {
     /// source's records are touched, so importing a *different* browser can't
     /// false-flag fixes whose store wasn't re-exported.
     private func verifyFixes(against source: BrowserSource) {
-        for (key, record) in fixSaveRecords where record.source == source.rawValue {
+        for (recKey, record) in fixSaveRecords where record.source == source.rawValue {
             let hashes = Set(
                 allCredentials
-                    .filter { $0.source == source && Self.progressKey(for: $0) == key }
+                    .filter { $0.source == source && Self.progressKey(for: $0) == record.progressKey }
                     .map { $0.password.sha256().base64EncodedString() }
             )
+            let key = recKey
             if hashes.isEmpty || hashes.contains(record.newHash) {
                 unsavedFixKeys.remove(key)        // not in this import, or new password saved
             } else if hashes.contains(record.oldHash) {

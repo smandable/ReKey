@@ -137,6 +137,31 @@ struct FixProgressTests {
         #expect(model.isFixed(cred))                           // not a silent no-op
     }
 
+    @Test("Same account fixed in two browsers verifies each source independently")
+    func perSourceSaveVerification() async throws {
+        clear(); defer { clear() }
+        let model = AppModel()
+        model.chromiumSource = .chrome
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")          // old pw
+        let chromeCred = try #require(model.allCredentials.first { $0.source == .chrome })
+        model.recordFixDone(item(for: chromeCred, newPassword: "NEW-chrome"))
+        model.chromiumSource = .arc
+        model.importData(Data(csv.utf8), displayName: "arc.csv")             // same account, old pw
+        let arcCred = try #require(model.allCredentials.first { $0.source == .arc })
+        model.recordFixDone(item(for: arcCred, newPassword: "NEW-arc"))
+
+        // Relaunch + re-import: chrome now shows the new password (saved), arc still old.
+        let reopened = AppModel()
+        reopened.chromiumSource = .chrome
+        reopened.importData(Data(csv(password: "NEW-chrome").utf8), displayName: "chrome.csv")
+        reopened.chromiumSource = .arc
+        reopened.importData(Data(csv.utf8), displayName: "arc.csv")          // still old
+        let reChrome = try #require(reopened.allCredentials.first { $0.source == .chrome })
+        let reArc = try #require(reopened.allCredentials.first { $0.source == .arc })
+        #expect(!reopened.fixMaySaveFailed(reChrome))   // saved → cleared
+        #expect(reopened.fixMaySaveFailed(reArc))       // didn't save → still flagged
+    }
+
     @Test("Reopen un-marks a fixed account so it can be redone")
     func unmarkFixed() throws {
         clear(); defer { clear() }
