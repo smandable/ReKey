@@ -10,6 +10,7 @@ struct FindingsView: View {
     @State private var onlyIssues = true
     @State private var sortByPriority = true
     @State private var showIgnored = false
+    @State private var searchText = ""
     /// Shared with the Fix Queue and the Settings screen; passwords shown by default.
     @AppStorage(Prefs.showPasswords) private var showPasswords = true
 
@@ -33,21 +34,23 @@ struct FindingsView: View {
             guard onlyIssues else { return true }
             return hasActiveIssue(group, report) || (showIgnored && hasIgnoredIssue(group, report))
         }
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let searched = query.isEmpty ? groups : groups.filter { group in
+            group.registrableDomain.lowercased().contains(query)
+                || group.credentials.contains {
+                    $0.username.lowercased().contains(query) || $0.site.lowercased().contains(query)
+                }
+        }
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 summary(report)
                 unsavedFixBanner
+                searchBar
 
-                if groups.isEmpty {
-                    ContentUnavailableView(
-                        onlyIssues ? "No issues found" : "No sites",
-                        systemImage: "checkmark.seal",
-                        description: Text(onlyIssues ? "None of your imported passwords are reused, breached, or weak." : "Import some credentials first.")
-                    )
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
+                if searched.isEmpty {
+                    emptyState(searching: !query.isEmpty)
                 } else {
-                    ForEach(groups) { group in
+                    ForEach(searched) { group in
                         domainSection(group, report: report)
                     }
                 }
@@ -56,6 +59,40 @@ struct FindingsView: View {
             .frame(maxWidth: 760, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Search site or username", text: $searchText)
+                .textFieldStyle(.plain)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.borderless).foregroundStyle(.secondary)
+                    .help("Clear")
+            }
+        }
+        .padding(8)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private func emptyState(searching: Bool) -> some View {
+        if searching {
+            ContentUnavailableView(
+                "No matches for “\(searchText)”",
+                systemImage: "magnifyingglass",
+                description: Text("No \(onlyIssues ? "flagged " : "")site or username matches your search. Clear the search or turn off “Only issues” to widen it.")
+            )
+            .frame(maxWidth: .infinity).padding(.top, 40)
+        } else {
+            ContentUnavailableView(
+                onlyIssues ? "No issues found" : "No sites",
+                systemImage: "checkmark.seal",
+                description: Text(onlyIssues ? "None of your imported passwords are reused, breached, or weak." : "Import some credentials first.")
+            )
+            .frame(maxWidth: .infinity).padding(.top, 40)
+        }
     }
 
     /// Top-of-Findings heads-up when a re-import shows fixed accounts still on the
@@ -132,7 +169,22 @@ struct FindingsView: View {
         let creds = group.credentials.filter { showIgnored || !model.isIgnored($0) }
         return GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                Text(group.registrableDomain).font(.title3.weight(.semibold))
+                HStack {
+                    Text(group.registrableDomain).font(.title3.weight(.semibold))
+                    Spacer()
+                    if creds.count > 1 {
+                        if model.canQueueGroup(group) {
+                            Button("Queue all") { Task { await model.enqueueGroup(group) } }
+                                .controlSize(.small)
+                                .help("Add every still-actionable account on this site to the Fix Queue.")
+                        }
+                        if model.canIgnoreGroup(group) {
+                            Button("Ignore all") { model.ignoreGroup(group) }
+                                .controlSize(.small)
+                                .help("Ignore every active finding on this site (reversible with “Show ignored”).")
+                        }
+                    }
+                }
                 ForEach(creds) { cred in
                     CredentialRow(model: model, cred: cred, report: report, revealPassword: showPasswords)
                     if cred.id != creds.last?.id { Divider() }

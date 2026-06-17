@@ -783,4 +783,40 @@ public final class AppModel {
             }
         }
     }
+
+    // MARK: - Bulk actions per domain group
+
+    /// Credentials in this group still worth queueing: a finding or weak, and not
+    /// already fixed, ignored, or queued.
+    private func queueableCreds(in group: DomainGroup) -> [ImportedCredential] {
+        guard let report else { return [] }
+        return group.credentials.filter { cred in
+            (report.findingsByCredential[cred.id] != nil || report.weak.contains(cred.id))
+                && !isFixed(cred) && !isIgnored(cred)
+                && !fixQueue.items.contains { $0.credentialID == cred.id }
+        }
+    }
+    public func canQueueGroup(_ group: DomainGroup) -> Bool { !queueableCreds(in: group).isEmpty }
+    public func enqueueGroup(_ group: DomainGroup) async {
+        for cred in queueableCreds(in: group) { await enqueueFix(for: cred) }
+        section = .fixing
+    }
+
+    /// Active, ignorable findings in this group (matches the per-row Ignore button).
+    private func ignorableCreds(in group: DomainGroup) -> [ImportedCredential] {
+        guard let report else { return [] }
+        return group.credentials.filter { cred in
+            !isIgnored(cred) && (report.findingsByCredential[cred.id] != nil
+                || report.weak.contains(cred.id)
+                || report.strayBlankUsername.contains(cred.id)
+                || cred.username.isEmpty)
+        }
+    }
+    public func canIgnoreGroup(_ group: DomainGroup) -> Bool { !ignorableCreds(in: group).isEmpty }
+    public func ignoreGroup(_ group: DomainGroup) {
+        let creds = ignorableCreds(in: group)
+        guard !creds.isEmpty else { return }
+        for cred in creds { ignoredKeys.insert(Self.progressKey(for: cred)) }
+        saveProgress()
+    }
 }
