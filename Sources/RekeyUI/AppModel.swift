@@ -157,6 +157,12 @@ public final class AppModel {
     /// the browser saved the login without a username). Keyed by source|site,
     /// persisted. DISPLAY ONLY: it never flows into the fix or the cleanup, which
     /// must match the browser's actual stored (blank) username.
+    ///
+    /// Privacy: these labels (often an email) persist in cleartext in UserDefaults
+    /// — the one user-entered value Rekey stores in the clear. Accepted: it's the
+    /// user's own email for an account whose plaintext store this host already
+    /// holds, it's never a password, and labels surviving a re-import is the
+    /// feature's whole point.
     private var usernameOverrides: [String: String] = [:]
     /// Save-verification keys (progressKey + source) whose most recent re-import of
     /// that source still shows the OLD password (not the new) — the change likely
@@ -171,6 +177,13 @@ public final class AppModel {
 
     /// Browser-independent identity for "this account is fixed" — changing the
     /// password on the site resolves it regardless of which browser saved it.
+    ///
+    /// Known limitation: two genuinely different *blank-username* logins on the
+    /// same registrable domain collapse to one key ("domain|"), so fixing or
+    /// ignoring one marks both. This is accepted: a usernameless login carries no
+    /// stable identity that survives a password change (the password itself is the
+    /// only differentiator, and it changes on fix), so there's nothing reliable to
+    /// distinguish them by. Rare in practice (two anonymous accounts on one site).
     public static func progressKey(for credential: ImportedCredential) -> String {
         "\(credential.registrableDomain)|\(credential.username)"
     }
