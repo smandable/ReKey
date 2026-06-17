@@ -16,7 +16,10 @@ public struct ImportedFile: Identifiable, Sendable {
     /// Source URL on disk, if it came from the file picker (nil for in-memory).
     public let url: URL?
     public let displayName: String
-    public let result: ImportResult
+    /// Mutable so a Chromium file can be relabeled in place (see
+    /// `AppModel.relabelChromium`) without re-importing — the credentials are
+    /// re-derived under the corrected browser source.
+    public var result: ImportResult
     public var sourceDeleted: Bool = false
 }
 
@@ -61,6 +64,7 @@ public final class AppModel {
         case fixing = "Fix Queue"
         case cull = "Cull"
         case cleanup = "Clean Up"
+        case help = "Help"
         case settings = "Settings"
         public var id: String { rawValue }
         public var systemImage: String {
@@ -70,6 +74,7 @@ public final class AppModel {
             case .fixing: return "checkmark.shield"
             case .cull: return "trash"
             case .cleanup: return "trash.slash"
+            case .help: return "questionmark.circle"
             case .settings: return "gearshape"
             }
         }
@@ -264,11 +269,56 @@ public final class AppModel {
         saveProgress()
     }
 
+    /// Bulk-unmark (e.g. "clear shown") — the mirror of bulk-mark, scoped to a
+    /// specific set (the filtered list) rather than every mark. One save.
+    public func unmarkForDeletion(_ credentials: [ImportedCredential]) {
+        var changed = false
+        for c in credentials where deletionKeys.remove(Self.deletionKey(for: c)) != nil { changed = true }
+        if changed { saveProgress() }
+    }
+
     /// Clear every deletion mark.
     public func unmarkAllForDeletion() {
         guard !deletionKeys.isEmpty else { return }
         deletionKeys.removeAll()
         saveProgress()
+    }
+
+    /// Drop deletion marks for logins that have vanished from a re-imported
+    /// browser. A mark deliberately persists across sessions (so a cull spanning
+    /// imports isn't lost), but once you re-export a browser and run the cull, the
+    /// deleted login is gone from the new export — there's no reason to keep
+    /// marking it, and a lingering mark reads as "wasn't this removed?".
+    ///
+    /// Reconciled **per source**, against the full set of currently-imported
+    /// credentials: a mark is cleared only when its browser IS in this import but
+    /// the specific login is not. A browser you didn't re-import keeps its marks
+    /// untouched (no evidence either way). Call once per import *batch* (after every
+    /// file is in `allCredentials`); calling mid-batch could clear a mark for a
+    /// login that's only in a later same-browser file in the same batch.
+    public func reconcileDeletionMarks() {
+        guard !deletionKeys.isEmpty else { return }
+        let presentSources = Set(allCredentials.map(\.source))
+        guard !presentSources.isEmpty else { return }
+        let presentKeys = Set(allCredentials.map { Self.deletionKey(for: $0) })
+        let stale = deletionKeys.filter { key in
+            guard let source = Self.source(ofDeletionKey: key),
+                  presentSources.contains(source) else { return false }  // browser not re-imported → keep
+            return !presentKeys.contains(key)
+        }
+        guard !stale.isEmpty else { return }
+        deletionKeys.subtract(stale)
+        saveProgress()
+    }
+
+    /// The browser source encoded in a deletion key. A key is
+    /// `"domain|username\u{1}sourceRaw"` (see `saveRecordKey`/`deletionKey`); the
+    /// `\u{1}` separator can't occur in a domain or username, so the trailing
+    /// component is the raw source.
+    private static func source(ofDeletionKey key: String) -> BrowserSource? {
+        let separator: Character = "\u{1}"
+        guard let raw = key.split(separator: separator).last else { return nil }
+        return BrowserSource(rawValue: String(raw))
     }
 
     /// Marked logins present in the current import (the ones the script can act on).
@@ -578,9 +628,9 @@ public final class AppModel {
         ingest(data: data, url: nil, displayName: displayName)
     }
 
-    private func ingest(data: Data, url: URL?, displayName: String) {
+    private func ingest(data: Data, url: URL?, displayName: String, chromiumOverride: BrowserSource? = nil) {
         do {
-            let result = try importer.import(data: data, chromiumSource: chromiumSource)
+            let result = try importer.import(data: data, chromiumSource: chromiumOverride ?? chromiumSource)
             files.append(ImportedFile(url: url, displayName: displayName, result: result))
             reindexCredentials()
             verifyFixes(against: result.source)
@@ -596,6 +646,66 @@ public final class AppModel {
         files.removeAll { $0.id == file.id }
         reindexCredentials()
         report = nil
+    }
+
+    /// Correct a mislabeled Chromium import in place. Chrome/Arc/Brave/Edge/Opera/
+    /// Vivaldi export byte-identical CSVs, so the detector can only call them
+    /// "Chromium" — the specific label is a guess (the import-time picker, or the
+    /// filename for auto-import). When that guess is wrong, this re-derives the
+    /// file's credentials under `newSource` without needing the (often already
+    /// securely-deleted) source CSV.
+    ///
+    /// Only the genuinely-ambiguous Chromium case is relabelable; Firefox and
+    /// Apple Passwords are detected unambiguously from their layouts.
+    public func relabelChromium(_ file: ImportedFile, to newSource: BrowserSource) {
+        guard let i = files.firstIndex(where: { $0.id == file.id }) else { return }
+        let old = files[i].result
+        guard old.detectedFormat == .chromium, newSource.isChromiumFamily,
+              newSource != old.source else { return }
+
+        // Re-key every source-stamped persisted record from the old source to the
+        // new one for this file's logins. Fix progress (completed/skipped/ignored)
+        // is keyed by domain|username — source-independent — so it carries over
+        // untouched; only these source-folded records need migrating.
+        for cred in old.credentials {
+            let pk = Self.progressKey(for: cred)
+            Self.migrateSourceKey(in: &deletionKeys, progressKey: pk, from: cred.source, to: newSource)
+            Self.migrateSourceKey(in: &unsavedFixKeys, progressKey: pk, from: cred.source, to: newSource)
+
+            let oldRec = Self.saveRecordKey(pk, cred.source.rawValue)
+            if let rec = fixSaveRecords.removeValue(forKey: oldRec) {
+                fixSaveRecords[Self.saveRecordKey(pk, newSource.rawValue)] =
+                    FixSaveRecord(progressKey: rec.progressKey, oldHash: rec.oldHash,
+                                  newHash: rec.newHash, source: newSource.rawValue)
+            }
+
+            let oldUO = Self.usernameOverrideKey(for: cred)
+            if let label = usernameOverrides.removeValue(forKey: oldUO) {
+                usernameOverrides["\(newSource.rawValue)|\(cred.site)"] = label
+            }
+        }
+
+        files[i].result = ImportResult(
+            source: newSource,
+            detectedFormat: old.detectedFormat,
+            credentials: old.credentials.map { $0.relabeled(to: newSource) },
+            skipped: old.skipped)
+        reindexCredentials()
+        saveProgress()
+        // Credential ids fold in source, so the prior audit's keys no longer
+        // resolve — invalidate it, same as a fresh import. The user re-audits.
+        report = nil
+        auditError = nil
+    }
+
+    /// Move a `domain|username` record from one source's namespace to another.
+    private static func migrateSourceKey(in set: inout Set<String>,
+                                         progressKey pk: String,
+                                         from old: BrowserSource,
+                                         to new: BrowserSource) {
+        if set.remove(saveRecordKey(pk, old.rawValue)) != nil {
+            set.insert(saveRecordKey(pk, new.rawValue))
+        }
     }
 
     /// Best-effort secure delete of a source CSV: overwrite the bytes with random
@@ -716,7 +826,12 @@ public final class AppModel {
         guard let data = try? Data(contentsOf: url),
               let table = try? CSVParser.parse(data),
               FormatDetector.detect(headers: table.headers) != .unknown else { return }
-        ingest(data: data, url: url, displayName: url.lastPathComponent)
+        // No import-time picker on this path, so infer the specific Chromium
+        // browser from the filename ("Arc Passwords.csv" → Arc). nil falls back
+        // to the default; ignored outright for Firefox/Apple (auto-detected).
+        let hint = BrowserSource.chromiumHint(forFilename: url.lastPathComponent)
+        ingest(data: data, url: url, displayName: url.lastPathComponent, chromiumOverride: hint)
+        reconcileDeletionMarks()   // a fresh export of this browser → drop marks for logins it no longer holds
         let count = files.last?.result.credentials.count ?? 0
         autoImportMessage = "Auto-imported \(url.lastPathComponent) — \(count) credential(s). Remember to securely delete it below."
     }
@@ -954,11 +1069,23 @@ public final class AppModel {
         lines += Self.purgeBlockLines(safe: safe, forced: forced, stillManual: stillManual,
                                       confirm: confirm, tallyVar: needsTally ? "REKEY_TALLY" : nil)
         if needsTally {
-            // Grand total across every browser's purge (a blank line, then the sum).
-            let verb = confirm ? "Deleted" : "Would delete"
-            lines.append("awk '{d+=$1; s+=$2} END {printf \"\\n\(verb) %d login(s) across %d site(s).\\n\", d, s}' \"$REKEY_TALLY\"")
+            // Grand total across every browser's purge. The sentinel lets "Add to
+            // existing file…" find and regenerate this line so appended sessions
+            // roll into one trailing total instead of leaving it stranded mid-file.
+            lines.append(Self.cullTotalSentinel)
+            lines.append(Self.cullTotalLine(confirm: confirm))
         }
         return CleanupPlanner.script(lines: lines, purpose: "remove the logins you marked for deletion.", confirm: confirm)
+    }
+
+    /// Comment marker on the line above the grand-total `awk`, so the append flow
+    /// can locate the old total, drop it, and write a fresh one at the bottom.
+    static let cullTotalSentinel = "# >>> ReKey cull grand total (regenerated when you append) >>>"
+
+    /// The grand-total line: sums every purge's `--tally` rows into one summary.
+    static func cullTotalLine(confirm: Bool) -> String {
+        let verb = confirm ? "Deleted" : "Would delete"
+        return "awk '{d+=$1; s+=$2} END {printf \"\\n\(verb) %d login(s) across %d site(s).\\n\", d, s}' \"$REKEY_TALLY\""
     }
 
     /// The purge command blocks alone — no shebang/header, no tally or grand total
@@ -971,6 +1098,47 @@ public final class AppModel {
         let stillManual = forceManual ? manualSites.filter { !$0.browser.isChromiumFamily } : manualSites
         let lines = Self.purgeBlockLines(safe: safe, forced: forced, stillManual: stillManual,
                                          confirm: confirm, tallyVar: nil)
+        return lines.isEmpty ? "" : lines.joined(separator: "\n")
+    }
+
+    /// Append this session's purge blocks to an already-saved cull script so the
+    /// file ends with a SINGLE grand total covering every session.
+    ///
+    /// When `existing` carries the tally setup + total sentinel (i.e. it was made by
+    /// "Save as rekey-cleanup.sh…" with deletable targets), the old total is dropped,
+    /// the new blocks are spliced in above it feeding the same `$REKEY_TALLY`, and a
+    /// fresh total is written at the bottom — so it sums *all* sessions, not just the
+    /// first. Otherwise (a file with no tally machinery we can't safely extend) it
+    /// falls back to the self-summarizing, tally-less blocks. Returns nil when
+    /// nothing is marked, so the caller leaves the file untouched.
+    public func deletionScriptAppending(to existing: String, confirm: Bool, forceManual: Bool = false) -> String? {
+        guard !deletionAppendableScript(confirm: confirm, forceManual: forceManual).isEmpty else { return nil }
+        let banner = "# --- appended by ReKey Cull ---"
+
+        if let sentinel = existing.range(of: Self.cullTotalSentinel), existing.contains("REKEY_TALLY=") {
+            // Everything before the old total (which is always the file's tail).
+            var head = String(existing[..<sentinel.lowerBound])
+            while head.hasSuffix("\n") { head.removeLast() }
+            let blocks = deletionAppendableTalliedScript(confirm: confirm, forceManual: forceManual)
+            return head + "\n\n" + banner + "\n" + blocks + "\n\n"
+                 + Self.cullTotalSentinel + "\n" + Self.cullTotalLine(confirm: confirm) + "\n"
+        }
+
+        // Legacy / total-less file: keep the old append behavior (no consolidated total).
+        var out = existing
+        if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
+        return out + "\n" + banner + "\n" + deletionAppendableScript(confirm: confirm, forceManual: forceManual) + "\n"
+    }
+
+    /// Appendable purge blocks that feed the shared `$REKEY_TALLY` (so a regenerated
+    /// trailing total sums them in) — for splicing into a saved script that already
+    /// sets that variable up. Empty when nothing is marked.
+    private func deletionAppendableTalliedScript(confirm: Bool, forceManual: Bool) -> String {
+        let (safe, manualSites) = deletionPlan()
+        let forced = forceManual ? manualSites.filter { $0.browser.isChromiumFamily } : []
+        let stillManual = forceManual ? manualSites.filter { !$0.browser.isChromiumFamily } : manualSites
+        let lines = Self.purgeBlockLines(safe: safe, forced: forced, stillManual: stillManual,
+                                         confirm: confirm, tallyVar: "REKEY_TALLY")
         return lines.isEmpty ? "" : lines.joined(separator: "\n")
     }
 

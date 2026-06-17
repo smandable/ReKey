@@ -55,6 +55,30 @@ public enum BrowserSource: String, Sendable, CaseIterable, Codable {
         BrowserSource.chromiumFamily.contains(self)
     }
 
+    /// Best-effort guess of the *specific* Chromium browser from an export's
+    /// filename — e.g. `Arc Passwords.csv` → `.arc`. Returns nil when the name
+    /// carries no recognizable brand, so callers fall back to their default.
+    ///
+    /// Auto-import (the watched folder) is the reason this exists: it has no
+    /// import-time picker, and since every Chromium browser emits a byte-identical
+    /// CSV layout, the filename is the only signal that tells Arc from Chrome.
+    /// Matched on whole tokens (split on non-alphanumerics) so `Arc Passwords`
+    /// resolves to Arc but an unrelated name like `search-export` does not match
+    /// the `arc` substring.
+    public static func chromiumHint(forFilename filename: String) -> BrowserSource? {
+        let tokens = Set(filename.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+        // `chromium` before `chrome` so an explicit "Chromium" export isn't
+        // swallowed by the generic Chrome case (neither is a substring of the
+        // other, but keep the specific-first ordering as documentation).
+        let brands: [(String, BrowserSource)] = [
+            ("arc", .arc), ("brave", .brave), ("edge", .edge),
+            ("opera", .opera), ("vivaldi", .vivaldi),
+            ("chromium", .chromium), ("chrome", .chrome),
+        ]
+        for (token, source) in brands where tokens.contains(token) { return source }
+        return nil
+    }
+
     /// Apple's password store (iCloud Keychain / Passwords app). It doesn't sync
     /// with browser/Google stores, so an account saved both here and in a browser
     /// must be updated in both — the split that bites on iPhone/iPad.

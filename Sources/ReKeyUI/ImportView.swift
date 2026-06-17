@@ -62,6 +62,8 @@ struct ImportView: View {
             switch result {
             case .success(let urls):
                 for url in urls { model.importFile(at: url) }
+                model.reconcileDeletionMarks()   // once, after the whole batch is in
+
             case .failure(let error):
                 model.reportImportError("Couldn't open that file: \(error.localizedDescription)")
             }
@@ -170,7 +172,7 @@ struct ImportView: View {
                     Image(systemName: "doc.text")
                     Text(file.displayName).font(.headline)
                     Spacer()
-                    BrowserSourcePill(source: file.result.source)
+                    sourceControl(file)
                 }
 
                 HStack(spacing: 16) {
@@ -212,6 +214,43 @@ struct ImportView: View {
                 }
             }
             .padding(6)
+        }
+    }
+
+    /// The browser label on a file card. Chromium files are ambiguous by content
+    /// (Chrome/Arc/Brave/… export identical CSVs), so they get a relabel Menu;
+    /// Firefox/Apple are detected unambiguously and stay a read-only pill. Built
+    /// as a Menu of Buttons rather than a Picker — segmented Pickers are inert on
+    /// this setup.
+    @ViewBuilder
+    private func sourceControl(_ file: ImportedFile) -> some View {
+        if file.result.detectedFormat == .chromium {
+            Menu {
+                ForEach(BrowserSource.chromiumFamily, id: \.self) { option in
+                    Button {
+                        model.relabelChromium(file, to: option)
+                    } label: {
+                        if option == file.result.source {
+                            Label(option.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(option.displayName)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    BrowserSourcePill(source: file.result.source)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Chrome, Arc, Brave, Edge, Opera, and Vivaldi export identical CSVs, so this label is a guess. Pick the right browser to relabel this file's logins — your fix progress is kept.")
+        } else {
+            BrowserSourcePill(source: file.result.source)
         }
     }
 

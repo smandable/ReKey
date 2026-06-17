@@ -8,6 +8,10 @@ is approved by you, and ReKey never changes a password itself.**
 
 Bundle ID: `com.seanmandable.rekey` · macOS 15+ · Swift 6 · arm64.
 
+**Questions about deleting passwords** — e.g. why a "compromised" warning can
+linger after you delete a login, or how Chrome sync affects it — see
+[Help & FAQ](docs/HELP.md) (also in the app's **Help** section).
+
 ---
 
 ## What ReKey guarantees
@@ -271,6 +275,11 @@ swift run rekey-cleanup delete --browser chrome --site github.com --username old
 > sync can resurrect a deleted entry; recent Chrome app-bound encryption is
 > hardening this surface), so the guardrails above are risk *reduction*, and the
 > automatic backup is your undo.
+
+For the practical side of this — why a "compromised" warning can survive a
+deletion, when to delete vs. re-key, and why deleting from Google Password
+Manager is more reliable than the local store under Chrome sync — see
+[Help & FAQ](docs/HELP.md).
 
 ## Project layout
 

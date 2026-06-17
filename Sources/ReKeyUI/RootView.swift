@@ -47,6 +47,7 @@ public struct RootView: View {
         case .fixing: FixQueueView(model: model)
         case .cull: CullView(model: model)
         case .cleanup: CleanupView(model: model)
+        case .help: HelpView(model: model)
         case .settings: SettingsView()
         }
     }
@@ -58,6 +59,7 @@ public struct RootView: View {
         case .fixing: return model.fixQueue.items.filter { $0.status == .pending }.count
         case .cull: return model.markedForDeletionCount
         case .cleanup: return 0
+        case .help: return 0
         case .settings: return 0
         }
     }

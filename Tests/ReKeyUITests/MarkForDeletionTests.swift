@@ -287,6 +287,30 @@ struct MarkForDeletionTests {
         #expect(safe.first?.username == "u")
     }
 
+    @Test("Bulk unmark clears only the passed-in subset, leaving other marks")
+    func bulkUnmarkScoped() throws {
+        clear(); defer { clear() }
+        let csv = """
+        name,url,username,password,note
+        GitHub,https://github.com/,sean,pw,
+        Example,https://example.com/,alice,pw,
+        Other,https://other.com/,bob,pw,
+        """
+        let model = AppModel()
+        model.chromiumSource = .chrome
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")
+        model.markForDeletion(model.allCredentials)
+        #expect(model.markedForDeletionCount == 3)
+
+        // Clear just the two non-GitHub logins (e.g. a "github" search would leave
+        // only GitHub shown — this is the inverse: clear everything else).
+        let subset = model.allCredentials.filter { $0.site != "github.com" }
+        model.unmarkForDeletion(subset)
+        #expect(model.markedForDeletionCount == 1)
+        let github = try #require(model.allCredentials.first { $0.site == "github.com" })
+        #expect(model.isMarkedForDeletion(github))   // the unscoped mark survives
+    }
+
     @Test("Clear all marks empties the selection and the script")
     func clearAll() throws {
         clear(); defer { clear() }
@@ -298,5 +322,91 @@ struct MarkForDeletionTests {
         model.unmarkAllForDeletion()
         #expect(model.markedForDeletionCount == 0)
         #expect(model.deletionCleanupScript(confirm: false).isEmpty)
+    }
+
+    // MARK: - Reconcile marks on re-import (auto-clear vanished logins)
+
+    @Test("Re-importing a browser drops marks for logins it no longer holds")
+    func reconcileDropsVanished() throws {
+        clear(); defer { clear() }
+        let two = """
+        name,url,username,password,note
+        GitHub,https://github.com/,sean,pw,
+        Example,https://example.com/,alice,pw,
+        """
+        let model = AppModel(); model.chromiumSource = .chrome
+        model.importData(Data(two.utf8), displayName: "chrome.csv")
+        model.markForDeletion(model.allCredentials)   // mark both
+        #expect(model.markedForDeletionCount == 2)
+
+        // A fresh Chrome export that no longer has example.com (it was culled).
+        let reloaded = AppModel(); reloaded.chromiumSource = .chrome
+        reloaded.importData(Data(csv.utf8), displayName: "chrome.csv")   // github only
+        reloaded.reconcileDeletionMarks()
+        let github = try #require(reloaded.allCredentials.first)
+        #expect(reloaded.isMarkedForDeletion(github))    // still-present login keeps its mark
+        #expect(reloaded.deletionKeys.count == 1)        // vanished mark dropped from the store, not just hidden
+    }
+
+    @Test("Reconcile leaves marks for a browser absent from the current import")
+    func reconcileKeepsAbsentBrowser() throws {
+        clear(); defer { clear() }
+        let model = AppModel(); model.chromiumSource = .chrome
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")     // github chrome
+        let github = try #require(model.allCredentials.first)
+        model.markForDeletion(github)
+
+        // New session imports ONLY Firefox — Chrome wasn't re-exported, so its mark must stay.
+        let reloaded = AppModel()
+        let firefox = """
+        url,username,password,httpRealm,formActionOrigin,guid,timeCreated,timeLastUsed,timePasswordChanged
+        https://other.com/,bob,pw,,https://other.com,{11111111-1111-1111-1111-111111111111},0,0,0
+        """
+        reloaded.importData(Data(firefox.utf8), displayName: "firefox.csv")
+        reloaded.reconcileDeletionMarks()
+        #expect(reloaded.deletionKeys.contains(AppModel.deletionKey(for: github)))   // kept (chrome not re-imported)
+        #expect(reloaded.markedForDeletionCount == 0)                                // just not counted (absent here)
+    }
+
+    // MARK: - Append consolidates the grand total
+
+    @Test("Appending to a saved script rewrites one trailing grand total")
+    func appendConsolidatesTotal() throws {
+        clear(); defer { clear() }
+        let model = AppModel(); model.chromiumSource = .chrome
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")     // github chrome
+        model.markForDeletion(try #require(model.allCredentials.first))
+        let saved = model.deletionCleanupScript(confirm: true)
+        #expect(saved.components(separatedBy: AppModel.cullTotalSentinel).count == 2)   // exactly one total
+
+        // A second session marks a different login and appends to the saved file.
+        model.unmarkAllForDeletion()
+        let m2 = AppModel(); m2.chromiumSource = .chrome
+        m2.importData(Data("name,url,username,password,note\nExample,https://example.com/,alice,pw,\n".utf8),
+                      displayName: "chrome.csv")
+        m2.markForDeletion(try #require(m2.allCredentials.first))
+        let appended = try #require(m2.deletionScriptAppending(to: saved, confirm: true))
+
+        #expect(appended.components(separatedBy: AppModel.cullTotalSentinel).count == 2)   // still one total
+        let total = AppModel.cullTotalLine(confirm: true)
+        #expect(appended.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix(total))  // …at the very bottom
+        #expect(appended.contains("github.com\tsean"))      // original target preserved
+        #expect(appended.contains("example.com\talice"))    // new session's target spliced in above the total
+        // Both blocks feed the same tally, so the single bottom total sums them.
+        #expect(appended.components(separatedBy: "--tally \"$REKEY_TALLY\"").count == 3)   // 2 purge blocks
+    }
+
+    @Test("Appending to a script with no grand total falls back to plain blocks")
+    func appendLegacyFallback() throws {
+        clear(); defer { clear() }
+        let model = AppModel(); model.chromiumSource = .chrome
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")
+        model.markForDeletion(try #require(model.allCredentials.first))
+        let legacy = "#!/bin/sh\necho hi\n"   // no REKEY_TALLY setup, no sentinel
+        let out = try #require(model.deletionScriptAppending(to: legacy, confirm: true))
+        #expect(out.hasPrefix("#!/bin/sh\necho hi"))
+        #expect(out.contains("github.com\tsean"))
+        #expect(!out.contains(AppModel.cullTotalSentinel))   // no consolidated total invented
+        #expect(!out.contains("--tally"))                    // plain, self-summarizing blocks
     }
 }

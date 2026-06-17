@@ -58,6 +58,29 @@ public struct ImportedCredential: Identifiable, Sendable, Equatable {
     /// `registrableDomain` stays for reuse grouping (eTLD+1).
     public var site: String { host.isEmpty ? registrableDomain : host }
 
+    /// A copy stamped with a different browser source, with its stable `id`
+    /// recomputed to match. Used when correcting a mislabeled Chromium import
+    /// (Arc CSVs are indistinguishable from Chrome by content): the result is
+    /// identical to what a fresh import under `newSource` would have produced,
+    /// so re-import dedup stays consistent.
+    public func relabeled(to newSource: BrowserSource) -> ImportedCredential {
+        ImportedCredential(
+            id: Self.deterministicID(
+                source: newSource,
+                registrableDomain: registrableDomain,
+                username: username,
+                passwordHash: password.sha256().base64EncodedString()),
+            source: newSource,
+            title: title,
+            rawURL: rawURL,
+            registrableDomain: registrableDomain,
+            host: host,
+            username: username,
+            password: password,
+            notes: notes,
+            hasTOTP: hasTOTP)
+    }
+
     /// A STABLE id derived from the fields that identify this exact saved login,
     /// so re-importing the same export (or an auto-import poll) yields the same id
     /// — queued fix items and progress keep resolving across a re-import instead of

@@ -36,6 +36,12 @@ struct CullView: View {
             .sorted { ($0.site, $0.username, $0.source.displayName) < ($1.site, $1.username, $1.source.displayName) }
     }
 
+    /// How many of the currently-shown logins are marked — the count "Clear shown"
+    /// would remove, and the pivot for whether a global "Clear all" is offered.
+    private var shownMarkedCount: Int {
+        shown.lazy.filter { model.isMarkedForDeletion($0) }.count
+    }
+
     var body: some View {
         // Single ScrollView root, matching the other detail views (Findings /
         // Clean Up / Fix Queue). A height-hugging VStack wrapping a greedy
@@ -120,10 +126,17 @@ struct CullView: View {
                     .controlSize(.small)
                     .disabled(shown.isEmpty || shown.allSatisfy { model.isMarkedForDeletion($0) })
                     .help("Mark every login currently shown (the included browsers + search). Handy for a near-empty browser: mark all, then un-mark the few you keep.")
-                Button("Clear all marks") { model.unmarkAllForDeletion() }
+                Button("Clear \(shownMarkedCount) shown") { model.unmarkForDeletion(shown) }
                     .controlSize(.small)
-                    .disabled(model.markedForDeletionCount == 0)
-                    .help("Remove every deletion mark (across all browsers). Nothing is deleted — this just clears your selections.")
+                    .disabled(shownMarkedCount == 0)
+                    .help("Clear the deletion marks on the logins currently shown (the included browsers + search) — the mirror of “Mark all shown”. Nothing is deleted.")
+                // Global escape, shown only when marks exist outside the current
+                // filter (so it isn't redundant with "Clear shown").
+                if model.markedForDeletionCount > shownMarkedCount {
+                    Button("Clear all (\(model.markedForDeletionCount))") { model.unmarkAllForDeletion() }
+                        .controlSize(.small)
+                        .help("Clear every deletion mark across all browsers — including \(model.markedForDeletionCount - shownMarkedCount) not matched by the current filter. Nothing is deleted.")
+                }
             }
         }
     }
@@ -166,6 +179,14 @@ struct CullView: View {
                 Text("Save and run this `rekey-cleanup.sh` yourself — one batched command per browser deletes the marked logins and prints a per-browser summary. Quit the affected browser(s) first; the tool backs up each store before deleting and won't run while a browser is open.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                // Chrome-sync caution — surfaced before a large purge. Full detail in Help.
+                VStack(alignment: .leading, spacing: 3) {
+                    Label("Using Chrome sync? Delete from Google Password Manager (passwords.google.com) — editing Chrome's local store here can be undone when the account re-syncs. And deleting only silences the warning; it doesn't change the password on the live site.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Why a warning can linger after deleting →") { model.section = .help }
+                        .buttonStyle(.link).font(.caption)
+                }
                 if forceable > 0 {
                     Toggle(isOn: $forceManual) {
                         Text("Force \(forceable) no-username removal\(forceable == 1 ? "" : "s") — logins you marked that have no username on a site with named logins. On: the script deletes just the no-username row(s) precisely (named logins left alone). Off: they're listed as a manual id-step.")
@@ -191,7 +212,7 @@ struct CullView: View {
                     Button { appendToExisting() } label: {
                         Label("Add to existing file…", systemImage: "doc.badge.plus")
                     }
-                    .help("Append these purge commands to a rekey-cleanup.sh you saved before, so culls from several sessions run from one file. Appended blocks print their own per-browser summary; purge is idempotent, so a re-listed site just reports \"already gone\".")
+                    .help("Append these purge commands to a rekey-cleanup.sh you saved before, so culls from several sessions run from one file. The file's grand total is regenerated at the bottom to cover every session; purge is idempotent, so a re-listed site just reports \"already gone\".")
                     Spacer()
                 }
                 DisclosureGroup(isExpanded: $showScript) {
@@ -278,20 +299,21 @@ struct CullView: View {
         }
     }
 
-    /// Append this session's purge command blocks (no header/total) to a script
-    /// the user already saved, so culls from several sessions accumulate in one file.
+    /// Append this session's purge command blocks to a script the user already
+    /// saved, so culls from several sessions accumulate in one file. When the file
+    /// was saved with deletable targets, the blocks are spliced in above its grand
+    /// total and that total is regenerated at the bottom — one trailing summary
+    /// covering every session, not a stranded mid-file one.
     private func appendToExisting() {
-        let body = model.deletionAppendableScript(confirm: confirm, forceManual: forceManual)
-        guard !body.isEmpty else { return }
+        guard !model.deletionAppendableScript(confirm: confirm, forceManual: forceManual).isEmpty else { return }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.message = "Choose a rekey-cleanup.sh to append these purge commands to."
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        var out = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
-        out += "\n# --- appended by ReKey Cull ---\n" + body + "\n"
+        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        guard let out = model.deletionScriptAppending(to: existing, confirm: confirm, forceManual: forceManual) else { return }
         try? out.write(to: url, atomically: true, encoding: .utf8)
     }
 
