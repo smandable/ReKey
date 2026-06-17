@@ -59,6 +59,7 @@ public final class AppModel {
         case importing = "Import"
         case findings = "Findings"
         case fixing = "Fix Queue"
+        case cull = "Cull"
         case cleanup = "Clean Up"
         case settings = "Settings"
         public var id: String { rawValue }
@@ -67,6 +68,7 @@ public final class AppModel {
             case .importing: return "square.and.arrow.down"
             case .findings: return "list.bullet.rectangle"
             case .fixing: return "checkmark.shield"
+            case .cull: return "trash"
             case .cleanup: return "trash.slash"
             case .settings: return "gearshape"
             }
@@ -92,7 +94,7 @@ public final class AppModel {
             return "Analyzing reuse and duplicates…"
         case let .checkingCompromise(done, total):
             guard total > 0 else { return "Checking passwords against Have I Been Pwned…" }
-            return "Checking passwords against Have I Been Pwned — \(done.formatted()) of \(total.formatted())"
+            return "Checking passwords against Have I Been Pwned — \(done.formatted()) of \(total.formatted()) distinct passwords"
         case .finalizing:
             return "Finalizing report…"
         }
@@ -140,11 +142,20 @@ public final class AppModel {
     /// by site+username like the others — no passwords. Ignored findings drop out
     /// of the active list and don't count toward fix progress.
     public private(set) var ignoredKeys: Set<String> = []
+    /// Logins the user has flagged to delete outright (not fix). Keyed
+    /// per-BROWSER (account + source), because deletion targets one browser's
+    /// saved copy — deleting the Chrome login must not touch the Arc one. No
+    /// passwords; feeds the `rekey-cleanup` deletion script. Persisted, and never
+    /// auto-pruned: a mark for a login absent from the current import is harmless
+    /// (both `markedForDeletionCount` and the plan filter to present credentials)
+    /// and simply re-applies if that login is imported again.
+    public private(set) var deletionKeys: Set<String> = []
     private let completedDefaultsKey = "rekey.completedKeys"
     private let skippedDefaultsKey = "rekey.skippedKeys"
     private let ignoredDefaultsKey = "rekey.ignoredKeys"
     private let saveRecordsDefaultsKey = "rekey.fixSaveRecords"
     private let usernameOverridesDefaultsKey = "rekey.usernameOverrides"
+    private let deletionDefaultsKey = "rekey.deletionKeys"
 
     /// Old/new password hashes per fixed account (progressKey), so a later import
     /// can verify the change saved. Hashes only — no passwords. Persisted.
@@ -206,6 +217,51 @@ public final class AppModel {
     public func unignoreFinding(for credential: ImportedCredential) {
         ignoredKeys.remove(Self.progressKey(for: credential))
         saveProgress()
+    }
+
+    // MARK: - Mark for deletion (cull)
+
+    /// Per-(account, browser) key for "delete this login". Unlike fix/ignore
+    /// (browser-independent), a deletion targets one browser's stored copy, so
+    /// the same account in two browsers is marked independently. It still inherits
+    /// `progressKey`'s blank-username limitation: two usernameless logins on the
+    /// same domain in the SAME browser collapse to one key (see `progressKey`).
+    public static func deletionKey(for credential: ImportedCredential) -> String {
+        saveRecordKey(progressKey(for: credential), credential.source.rawValue)
+    }
+
+    public func isMarkedForDeletion(_ credential: ImportedCredential) -> Bool {
+        deletionKeys.contains(Self.deletionKey(for: credential))
+    }
+
+    /// Flag a login for outright deletion (added to the cull cleanup script).
+    public func markForDeletion(_ credential: ImportedCredential) {
+        deletionKeys.insert(Self.deletionKey(for: credential))
+        saveProgress()
+    }
+
+    public func unmarkForDeletion(_ credential: ImportedCredential) {
+        deletionKeys.remove(Self.deletionKey(for: credential))
+        saveProgress()
+    }
+
+    /// Bulk-mark (e.g. "mark all shown") — one save, not one per login.
+    public func markForDeletion(_ credentials: [ImportedCredential]) {
+        guard !credentials.isEmpty else { return }
+        for c in credentials { deletionKeys.insert(Self.deletionKey(for: c)) }
+        saveProgress()
+    }
+
+    /// Clear every deletion mark.
+    public func unmarkAllForDeletion() {
+        guard !deletionKeys.isEmpty else { return }
+        deletionKeys.removeAll()
+        saveProgress()
+    }
+
+    /// Marked logins present in the current import (the ones the script can act on).
+    public var markedForDeletionCount: Int {
+        allCredentials.lazy.filter { self.isMarkedForDeletion($0) }.count
     }
 
     /// (fixed, total) over flagged credentials, deduped by site+username. Ignored
@@ -354,6 +410,7 @@ public final class AppModel {
         UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
         UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)
         UserDefaults.standard.set(Array(ignoredKeys), forKey: ignoredDefaultsKey)
+        UserDefaults.standard.set(Array(deletionKeys), forKey: deletionDefaultsKey)
         // [recKey: [progressKey, oldHash, newHash, source]] — plist-native, hashes only.
         UserDefaults.standard.set(fixSaveRecords.mapValues { [$0.progressKey, $0.oldHash, $0.newHash, $0.source] },
                                   forKey: saveRecordsDefaultsKey)
@@ -364,6 +421,7 @@ public final class AppModel {
         completedKeys = Set(UserDefaults.standard.stringArray(forKey: completedDefaultsKey) ?? [])
         skippedKeys = Set(UserDefaults.standard.stringArray(forKey: skippedDefaultsKey) ?? [])
         ignoredKeys = Set(UserDefaults.standard.stringArray(forKey: ignoredDefaultsKey) ?? [])
+        deletionKeys = Set(UserDefaults.standard.stringArray(forKey: deletionDefaultsKey) ?? [])
         let raw = UserDefaults.standard.dictionary(forKey: saveRecordsDefaultsKey) as? [String: [String]] ?? [:]
         fixSaveRecords = [:]
         for (storedKey, v) in raw {
@@ -764,43 +822,140 @@ public final class AppModel {
         return CleanupPlanner.script(lines: lines, confirm: confirm)
     }
 
-    /// Pure core of the cleanup plan (testable without the networked enqueue):
-    /// classifies each done item's delete as safe or, for a site-level delete that
-    /// would also hit un-fixed siblings, a manual id-based step. `siblingCount` is
-    /// the total saved logins for a (browser, site).
+    /// One (source, site, username) the cleanup script should target. For a safe
+    /// target, `username` is "" when the delete is site-level (Firefox — encrypted
+    /// usernames — or a blank-username login).
+    public struct CleanupTarget: Sendable {
+        public let source: BrowserSource
+        public let site: String
+        public let username: String
+    }
+
+    /// Pure core (testable): partition targets into ones that delete cleanly and
+    /// ones needing a manual id step — a site-level delete that would also remove
+    /// logins NOT among the targets (`siblingCount` on a (browser, site) exceeds
+    /// how many of its logins are targets). Safe targets are normalized (username
+    /// dropped where the store can't filter by it, or where it's blank) and
+    /// deduped, so each maps to exactly one delete.
+    static func classifyCleanup(
+        targets: [CleanupTarget],
+        siblingCount: (BrowserSource, String) -> Int
+    ) -> (safe: [CleanupTarget], manualSites: [ManualCleanupSite]) {
+        var targetedPerSite: [String: Int] = [:]
+        for t in targets where t.source.cleanupSupported {
+            targetedPerSite["\(t.source.rawValue)|\(t.site)", default: 0] += 1
+        }
+
+        var safe: [CleanupTarget] = []; var seenSafe = Set<String>()
+        var manual: [ManualCleanupSite] = []; var seenSite = Set<String>()
+        for t in targets {
+            guard t.source.cleanupSupported else { continue }   // Apple/unknown: tool can't delete
+            // Only Chromium can target by username (Firefox usernames are encrypted).
+            let user = (t.source.isChromiumFamily && !t.username.isEmpty) ? t.username : ""
+            let key = "\(t.source.rawValue)|\(t.site)"
+            if user.isEmpty, siblingCount(t.source, t.site) > (targetedPerSite[key] ?? 0) {
+                if seenSite.insert(key).inserted {
+                    manual.append(ManualCleanupSite(domain: t.site, browser: t.source,
+                                                    loginCount: siblingCount(t.source, t.site)))
+                }
+            } else if seenSafe.insert("\(key)|\(user)").inserted {
+                safe.append(CleanupTarget(source: t.source, site: t.site, username: user))
+            }
+        }
+        return (safe, manual)
+    }
+
+    /// Cleanup plan as deduped `rekey-cleanup delete` command strings (the
+    /// fix-queue stale-removal path keeps its one-command-per-site form).
+    static func cleanupPlan(
+        targets: [CleanupTarget],
+        siblingCount: (BrowserSource, String) -> Int
+    ) -> FixedCleanupPlan {
+        let (safe, manual) = classifyCleanup(targets: targets, siblingCount: siblingCount)
+        let commands = safe.compactMap {
+            StaleLoginGuidance.cliCommand(for: $0.source, domain: $0.site, username: $0.username)
+        }
+        return FixedCleanupPlan(safeCommands: commands, manualSites: manual)
+    }
+
+    /// Cleanup plan for the logins marked **done** in the fix queue — removing
+    /// the stale old saved entries after a re-key.
     static func cleanupPlan(
         forDone items: [FixItem],
         source: (UUID) -> BrowserSource,
         siblingCount: (BrowserSource, String) -> Int
     ) -> FixedCleanupPlan {
-        let done = items.filter { $0.status == .done }
-        // How many logins on each (source, site) the user actually fixed.
-        var fixedPerSite: [String: Int] = [:]
-        for item in done {
-            fixedPerSite["\(source(item.credentialID).rawValue)|\(item.site)", default: 0] += 1
-        }
+        let targets = items.filter { $0.status == .done }
+            .map { CleanupTarget(source: source($0.credentialID), site: $0.site, username: $0.username) }
+        return cleanupPlan(targets: targets, siblingCount: siblingCount)
+    }
 
-        var safe: [String] = []; var seenCmd = Set<String>()
-        var manual: [ManualCleanupSite] = []; var seenSite = Set<String>()
-        for item in done {
-            let src = source(item.credentialID)
-            guard let cmd = StaleLoginGuidance.cliCommand(
-                for: src, domain: item.site, username: item.username
-            ) else { continue }
-            let key = "\(src.rawValue)|\(item.site)"
-            let isSiteLevel = !cmd.contains("--username")
-            // Risky only if a site-level delete would remove logins the user did
-            // NOT fix (total on the site exceeds the count fixed there).
-            if isSiteLevel, siblingCount(src, item.site) > (fixedPerSite[key] ?? 0) {
-                if seenSite.insert(key).inserted {
-                    manual.append(ManualCleanupSite(domain: item.site, browser: src,
-                                                    loginCount: siblingCount(src, item.site)))
-                }
-            } else if seenCmd.insert(cmd).inserted {
-                safe.append(cmd)
+    // MARK: - Cull (mark-for-deletion) cleanup script
+
+    /// Safe (browser, site, username) targets for the marked-for-deletion logins,
+    /// plus sites needing a manual id step (deleting by site would catch logins
+    /// you didn't mark). Sources the tool can't clean are dropped.
+    public func deletionPlan() -> (safe: [CleanupTarget], manualSites: [ManualCleanupSite]) {
+        let targets = allCredentials
+            .filter { isMarkedForDeletion($0) }
+            .map { Self.CleanupTarget(source: $0.source, site: $0.site, username: $0.username) }
+        return Self.classifyCleanup(targets: targets) { source, domain in
+            allCredentials.filter { $0.source == source && $0.site == domain }.count
+        }
+    }
+
+    /// Marked sites needing manual, id-based deletion — for the UI warning.
+    public func deletionManualSiteCount() -> Int { deletionPlan().manualSites.count }
+
+    /// The cull deletion script: one `rekey-cleanup purge` per browser — targets
+    /// piped via stdin, deleting the marked logins outright (no lone-login guard)
+    /// with a single per-browser summary line — plus commented `list` →
+    /// `delete --id` steps for any site a batch delete can't safely target. Empty
+    /// when nothing is marked.
+    public func deletionCleanupScript(confirm: Bool) -> String {
+        let (safe, manualSites) = deletionPlan()
+        guard !safe.isEmpty || !manualSites.isEmpty else { return "" }
+
+        var lines: [String] = []
+        if !safe.isEmpty {
+            // Tally each browser's count into a temp file, summed into a grand
+            // total at the very end.
+            lines.append("REKEY_TALLY=\"$(mktemp -t rekey-cull-tally)\"")
+            lines.append("trap 'rm -f \"$REKEY_TALLY\"' EXIT")
+            lines.append("")
+        }
+        let byBrowser = Dictionary(grouping: safe, by: \.source)
+        for browser in byBrowser.keys.sorted(by: { $0.displayName < $1.displayName }) {
+            let cli = browser.cleanupCLIName ?? browser.rawValue
+            let group = byBrowser[browser]!.sorted { $0.site < $1.site }
+            lines.append("# \(browser.displayName) — \(group.count) site(s)")
+            lines.append("rekey-cleanup purge --browser \(cli)\(confirm ? " --confirm" : "") --tally \"$REKEY_TALLY\" <<'REKEY_TARGETS'")
+            // Heredoc body is raw stdin (a quoted delimiter, so it's never
+            // shell-evaluated) — site/username can't inject. Tab-separated;
+            // username omitted when empty (site-level).
+            for t in group {
+                lines.append(t.username.isEmpty ? t.site : "\(t.site)\t\(t.username)")
+            }
+            lines.append("REKEY_TARGETS")
+            lines.append("")
+        }
+        if !manualSites.isEmpty {
+            lines.append("# ⚠︎ Manual deletion — these have no username on a site that has other saved")
+            lines.append("#    logins, so deleting by site would remove them too. Remove just the one you")
+            lines.append("#    marked, by id:")
+            for site in manualSites {
+                let cli = site.browser.cleanupCLIName ?? site.browser.rawValue
+                lines.append("#    \(site.domain) (\(site.browser.displayName), \(site.loginCount) logins):")
+                lines.append("#      rekey-cleanup list --browser \(cli) --site \(site.domain.shellArgument)")
+                lines.append("#      rekey-cleanup delete --browser \(cli) --id <id-of-the-login-you-marked> --confirm")
             }
         }
-        return FixedCleanupPlan(safeCommands: safe, manualSites: manual)
+        if !safe.isEmpty {
+            // Grand total across every browser's purge (a blank line, then the sum).
+            let verb = confirm ? "Deleted" : "Would delete"
+            lines.append("awk '{d+=$1; s+=$2} END {printf \"\\n\(verb) %d login(s) across %d site(s).\\n\", d, s}' \"$REKEY_TALLY\"")
+        }
+        return CleanupPlanner.script(lines: lines, purpose: "remove the logins you marked for deletion.", confirm: confirm)
     }
 
     public func enqueueAllFlagged() async {

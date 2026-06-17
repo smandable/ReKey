@@ -55,7 +55,7 @@ func run() -> Int32 {
         return command == nil ? 1 : 0
     }
 
-    guard command == "list" || command == "delete" else {
+    guard command == "list" || command == "delete" || command == "purge" else {
         FileHandle.standardError.write(Data("Unknown command '\(command!)'. Try: rekey-cleanup help\n".utf8))
         return 1
     }
@@ -175,6 +175,82 @@ func run() -> Int32 {
             StoreBackup.pruneOldBackups(root: backupRoot)
             return 0
 
+        case "purge":
+            // Batch outright-delete: read "site<TAB>username" targets from stdin
+            // (username optional). Unlike `delete`, there is NO lone-current-login
+            // guard — purge means "remove these accounts entirely". One backup for
+            // the whole batch, one summary line.
+            let targets = readPurgeTargets()
+            guard !targets.isEmpty else {
+                printErr("\(browser.displayName): no targets on stdin — nothing to purge.")
+                return 1
+            }
+            // Optional cross-browser tally file: the cull script passes --tally and
+            // sums these "<deleted> <sites>" lines into a grand total at the end.
+            let tallyPath = opt("tally")
+            func appendTally(_ count: Int, _ sites: Int) {
+                guard let tallyPath else { return }
+                let line = "\(count) \(sites)\n"
+                if let fh = FileHandle(forWritingAtPath: tallyPath) {
+                    defer { try? fh.close() }
+                    fh.seekToEndOfFile()
+                    fh.write(Data(line.utf8))
+                } else {
+                    try? line.write(toFile: tallyPath, atomically: true, encoding: .utf8)
+                }
+            }
+            // Collect every matching login once (deduped by id), so the whole
+            // browser's deletions show in ONE table under ONE header.
+            var byID: [String: StoredLogin] = [:]
+            var sitesTouched = Set<String>()
+            var matchedTargets = 0
+            for t in targets {
+                // LoginFilter.site is a broad origin SUBSTRING match, so re-anchor
+                // each hit to the target host (or a subdomain of it) — never delete
+                // a merely-similar domain (e.g. "nodepositcasino.com" for "casino.com").
+                let found = try store.list(matching: LoginFilter(site: t.site, username: t.username))
+                    .filter { PurgeTargets.originBelongsToSite($0.origin, site: t.site) }
+                if !found.isEmpty {
+                    matchedTargets += 1
+                    sitesTouched.insert(t.site)
+                    for m in found { byID[m.id] = m }
+                }
+            }
+            let clean = targets.count - matchedTargets
+            let cleanNote = clean > 0 ? "; \(clean) already gone" : ""
+            guard !byID.isEmpty else {
+                appendTally(0, 0)
+                print("\(browser.displayName): nothing to delete — all \(targets.count) target(s) already gone.")
+                return 0
+            }
+            let matched = byID.values.sorted { ($0.origin, $0.id) < ($1.origin, $1.id) }
+            print("\(browser.displayName) — \(storeURL.path)")
+            printTable(matched)   // one consolidated table for the batch (grouped by site)
+
+            if !flag("confirm") {
+                appendTally(matched.count, sitesTouched.count)
+                print("\nDRY RUN: would delete \(matched.count) login(s) across \(sitesTouched.count) site(s)\(cleanNote). Re-run with --confirm.")
+                return 0
+            }
+            if runningChecker.isRunning(browser) {
+                printErr("\n\(browser.displayName) is running. Quit it completely, then re-run with --confirm.")
+                return 2
+            }
+            let backupRoot: URL
+            if let custom = opt("backup-dir") {
+                backupRoot = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
+            } else {
+                StoreBackup.migrateLegacyBackupRoot()
+                backupRoot = StoreBackup.defaultBackupRoot()
+            }
+            let backupDir = StoreBackup.backupDirectory(root: backupRoot, label: browser.rawValue, timestamp: timestamp())
+            let outcome = try store.delete(matching: LoginFilter(identifiers: Set(byID.keys)), backupDirectory: backupDir)
+            StoreBackup.pruneOldBackups(root: backupRoot)
+            appendTally(outcome.deletedCount, sitesTouched.count)
+            print("\nBacked up to: \(outcome.backupPath.path)")
+            print("Deleted \(outcome.deletedCount) login(s) across \(sitesTouched.count) site(s)\(cleanNote).")
+            return 0
+
         default:
             return 1
         }
@@ -188,6 +264,14 @@ func run() -> Int32 {
 }
 
 // MARK: - Output
+
+/// Read purge targets from stdin (the cull script feeds these via a quoted
+/// heredoc, so values arrive verbatim) and parse them. See `PurgeTargets.parse`.
+func readPurgeTargets() -> [PurgeTargets.Target] {
+    var lines: [String] = []
+    while let line = readLine(strippingNewline: true) { lines.append(line) }
+    return PurgeTargets.parse(lines)
+}
 
 /// Host of a stored login's origin URL, for the over-match (multi-site) warning.
 func host(ofOrigin origin: String) -> String {
