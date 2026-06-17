@@ -239,7 +239,7 @@ quarantined with heavy guardrails:
 - **Won't run with the browser open.** Writing under a live browser is the
   classic corruption path, so a confirmed delete is refused until you quit it.
 - **Backs up first.** The store (plus Chromium WAL/SHM sidecars) is copied to
-  `~/Library/Application Support/Rekey/Backups/<browser>-<timestamp>/` before any
+  `~/Library/Application Support/ReKey/Backups/<browser>-<timestamp>/` before any
   write. If the backup fails, nothing is deleted.
 - **Transactional / atomic.** Chromium deletes run in a SQLite transaction
   (rollback on any error); Firefox is rewritten atomically (temp file + rename),

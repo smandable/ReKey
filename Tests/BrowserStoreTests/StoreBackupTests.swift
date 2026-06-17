@@ -50,4 +50,49 @@ struct StoreBackupTests {
             try StoreBackup.copy(files: [src], into: backup)
         }
     }
+
+    // MARK: Rekey → ReKey backup-dir migration
+
+    @Test("Migrates a legacy Rekey backup dir to ReKey, preserving the snapshot")
+    func migratesLegacyBackupDir() throws {
+        let fm = FileManager.default
+        let appSupport = TestStores.tempDir()
+        // Pre-rebrand layout: one snapshot under "Rekey/Backups".
+        let snap = appSupport.appendingPathComponent("Rekey/Backups/chrome-20260101-000000-aa1", isDirectory: true)
+        try fm.createDirectory(at: snap, withIntermediateDirectories: true)
+        try Data("snapshot".utf8).write(to: snap.appendingPathComponent("Login Data"))
+
+        StoreBackup.migrateLegacyBackupRoot(inApplicationSupport: appSupport)
+
+        // The directory now reads exactly "ReKey" and the snapshot survived intact.
+        let names = Set(try fm.contentsOfDirectory(atPath: appSupport.path))
+        #expect(names.contains("ReKey"))
+        #expect(!names.contains("Rekey"))
+        let moved = appSupport.appendingPathComponent("ReKey/Backups/chrome-20260101-000000-aa1/Login Data")
+        #expect(fm.fileExists(atPath: moved.path))
+        #expect(try Data(contentsOf: moved) == Data("snapshot".utf8))
+    }
+
+    @Test("Migration is a no-op (and non-destructive) when the dir is already ReKey")
+    func migrationIdempotent() throws {
+        let fm = FileManager.default
+        let appSupport = TestStores.tempDir()
+        let snap = appSupport.appendingPathComponent("ReKey/Backups/arc-20260101-000000-bb1", isDirectory: true)
+        try fm.createDirectory(at: snap, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: snap.appendingPathComponent("Login Data"))
+
+        StoreBackup.migrateLegacyBackupRoot(inApplicationSupport: appSupport)  // run twice
+        StoreBackup.migrateLegacyBackupRoot(inApplicationSupport: appSupport)
+
+        #expect(try fm.contentsOfDirectory(atPath: appSupport.path) == ["ReKey"])
+        #expect(fm.fileExists(atPath: snap.appendingPathComponent("Login Data").path))
+    }
+
+    @Test("Migration does nothing when there is no prior backup directory")
+    func migrationNoLegacyDir() throws {
+        let fm = FileManager.default
+        let appSupport = TestStores.tempDir()
+        StoreBackup.migrateLegacyBackupRoot(inApplicationSupport: appSupport)
+        #expect((try? fm.contentsOfDirectory(atPath: appSupport.path))?.isEmpty ?? true)
+    }
 }

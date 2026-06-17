@@ -4,11 +4,84 @@ import Foundation
 /// destructive write. If anything here throws, the caller must not proceed with
 /// the delete.
 public enum StoreBackup {
-    /// Default backup root: ~/Library/Application Support/Rekey/Backups
+    /// Default backup root: ~/Library/Application Support/ReKey/Backups
     public static func defaultBackupRoot() -> URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        applicationSupport().appendingPathComponent("ReKey/Backups", isDirectory: true)
+    }
+
+    private static func applicationSupport() -> URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return appSupport.appendingPathComponent("Rekey/Backups", isDirectory: true)
+    }
+
+    /// One-time migration of the recovery-snapshot directory after the app was
+    /// renamed "Rekey" → "ReKey". Pre-rebrand, snapshots lived under
+    /// `Application Support/Rekey/Backups`; this brings the directory's casing in
+    /// line and carries any existing snapshots across so none are orphaned.
+    ///
+    /// On the usual case-insensitive volume `Rekey` and `ReKey` resolve to the
+    /// same folder, so this is a case-only fix done via a staging hop (a direct
+    /// case-only rename is rejected there). On a case-sensitive volume they are
+    /// distinct directories, so the legacy tree is moved — or merged when a
+    /// `ReKey` tree already exists. Idempotent and best-effort: a failure must
+    /// never block a cleanup, and only our own directory is ever touched.
+    public static func migrateLegacyBackupRoot() {
+        migrateLegacyBackupRoot(inApplicationSupport: applicationSupport())
+    }
+
+    /// Testable core of ``migrateLegacyBackupRoot()``, operating on an explicit
+    /// Application Support directory.
+    static func migrateLegacyBackupRoot(inApplicationSupport appSupport: URL) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: appSupport.path) else { return }
+        // Our directory under any casing ("Rekey", "ReKey", …).
+        let ours = entries.filter { $0.caseInsensitiveCompare("ReKey") == .orderedSame }
+        guard !ours.isEmpty else { return }     // nothing of ours yet
+        if ours == ["ReKey"] { return }         // already correctly cased
+
+        let current = appSupport.appendingPathComponent("ReKey", isDirectory: true)
+
+        // Case-sensitive volume carrying both a legacy "Rekey" and a "ReKey": merge.
+        if ours.count >= 2 {
+            let legacyName = ours.first { $0 != "ReKey" } ?? ours[0]
+            mergeBackupTree(from: appSupport.appendingPathComponent(legacyName, isDirectory: true),
+                            into: current, using: fm)
+            return
+        }
+
+        // A single directory whose case isn't exactly "ReKey" → rename it. Stage
+        // through a distinct name so it also works on a case-insensitive volume,
+        // where a direct case-only rename throws.
+        let legacy = appSupport.appendingPathComponent(ours[0], isDirectory: true)
+        let staging = appSupport.appendingPathComponent("ReKey.migrating", isDirectory: true)
+        try? fm.removeItem(at: staging)         // clear a stale staging dir from an interrupted run
+        do {
+            try fm.moveItem(at: legacy, to: staging)
+            try fm.moveItem(at: staging, to: current)
+        } catch {
+            // Best-effort rollback so legacy snapshots are never stranded.
+            if fm.fileExists(atPath: staging.path) && !fm.fileExists(atPath: legacy.path) {
+                try? fm.moveItem(at: staging, to: legacy)
+            }
+        }
+    }
+
+    /// Move every snapshot from a legacy `…/Backups` into the current one,
+    /// keeping the legacy copy on any name clash, then drop the legacy tree if it
+    /// was fully carried over.
+    private static func mergeBackupTree(from legacy: URL, into current: URL, using fm: FileManager) {
+        let legacyBackups = legacy.appendingPathComponent("Backups", isDirectory: true)
+        let currentBackups = current.appendingPathComponent("Backups", isDirectory: true)
+        guard fm.fileExists(atPath: legacyBackups.path) else { return }
+        try? fm.createDirectory(at: currentBackups, withIntermediateDirectories: true)
+        var carriedAll = true
+        for name in (try? fm.contentsOfDirectory(atPath: legacyBackups.path)) ?? [] {
+            let dst = currentBackups.appendingPathComponent(name)
+            if fm.fileExists(atPath: dst.path) { carriedAll = false; continue }
+            do { try fm.moveItem(at: legacyBackups.appendingPathComponent(name), to: dst) }
+            catch { carriedAll = false }
+        }
+        if carriedAll { try? fm.removeItem(at: legacy) }
     }
 
     /// Compute (but don't create) a unique backup directory for a run.

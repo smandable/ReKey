@@ -156,8 +156,16 @@ func run() -> Int32 {
                 printErr("\n\(browser.displayName) is running. Quit it completely, then re-run with --confirm.")
                 return 2
             }
-            let backupRoot = opt("backup-dir").map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
-                ?? StoreBackup.defaultBackupRoot()
+            let backupRoot: URL
+            if let custom = opt("backup-dir") {
+                backupRoot = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
+            } else {
+                // One-time: bring the recovery-snapshot dir up to the new name
+                // (Rekey/Backups → ReKey/Backups) before we read or write it, so
+                // older snapshots stay alongside this run's and get pruned together.
+                StoreBackup.migrateLegacyBackupRoot()
+                backupRoot = StoreBackup.defaultBackupRoot()
+            }
             let backupDir = StoreBackup.backupDirectory(root: backupRoot, label: browser.rawValue, timestamp: timestamp())
 
             let outcome = try store.delete(matching: filter, backupDirectory: backupDir)
@@ -252,7 +260,7 @@ func printUsage() {
     SAFETY
       • `delete` is a DRY RUN unless you pass --confirm.
       • Writing is refused while the browser is running — quit it first.
-      • The store is backed up before any delete (default: ~/Library/Application Support/Rekey/Backups).
+      • The store is backed up before any delete (default: ~/Library/Application Support/ReKey/Backups).
       • Nothing is ever decrypted; matching uses plaintext fields only.
 
     EXAMPLES
