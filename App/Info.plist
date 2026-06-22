@@ -24,8 +24,16 @@
     <string>15.0</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <!-- Only exempt encryption (HTTPS + hashing); declaring this skips the
+         per-upload export-compliance question in App Store Connect. -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>NSHumanReadableCopyright</key>
     <string>ReKey is a local-first password health auditor.</string>
 </dict>

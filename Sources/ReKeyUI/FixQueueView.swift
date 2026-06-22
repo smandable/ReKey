@@ -31,7 +31,11 @@ struct FixQueueView: View {
                     ForEach(model.fixQueue.items) { item in
                         FixCard(model: model, item: item)
                     }
+                    // App Store build is a pure auditor — the deletion-script /
+                    // Terminal workflow ships only in the direct (non-MAS) build.
+                    #if !MAS_BUILD
                     cleanupSection
+                    #endif
                 }
             }
             .padding(20)
@@ -331,9 +335,13 @@ private struct FixCard: View {
                 if isCrossEcosystem {
                     crossEcosystemNote
                 }
+                // The per-card "Old login still saved?" cleanup hands over a
+                // prefilled rekey-cleanup Terminal command — direct build only.
+                #if !MAS_BUILD
                 if item.status == .done {
                     staleLoginGuidance
                 }
+                #endif
             }
             .padding(8)
         }

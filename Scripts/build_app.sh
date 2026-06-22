@@ -38,6 +38,18 @@ for bundle in "$BIN_PATH"/*.bundle; do
 done
 shopt -u nullglob
 
+# App icon (Info.plist references AppIcon via CFBundleIconFile).
+if [[ -f "$ROOT/App/AppIcon.icns" ]]; then
+    cp "$ROOT/App/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+    echo "    bundled AppIcon.icns in Contents/Resources"
+fi
+
+# Privacy manifest (no data collected; declares required-reason API usage).
+if [[ -f "$ROOT/App/PrivacyInfo.xcprivacy" ]]; then
+    cp "$ROOT/App/PrivacyInfo.xcprivacy" "$APP/Contents/Resources/PrivacyInfo.xcprivacy"
+    echo "    bundled PrivacyInfo.xcprivacy in Contents/Resources"
+fi
+
 # PkgInfo (optional but conventional).
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 

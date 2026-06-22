@@ -2,9 +2,11 @@ import SwiftUI
 
 /// In-app help, a first-class sidebar section. Its first topic — why a
 /// compromised-password warning can linger after you delete the saved login —
-/// is deep-linked from the Cull script panel ("Why a warning can linger →").
-/// Kept in sync with `docs/HELP.md`, which carries the same text for people
-/// reading on GitHub.
+/// is deep-linked from the Cull script panel ("Why a warning can linger →") in
+/// the direct build. The copy here is deliberately tool-agnostic (it never names
+/// `rekey-cleanup` or the Cull tab) so it reads correctly in the App Store
+/// build too, which is a pure auditor; `docs/HELP.md` carries the fuller,
+/// tool-naming version for people reading the full product on GitHub.
 struct HelpView: View {
     @Bindable var model: AppModel
 
@@ -20,13 +22,13 @@ struct HelpView: View {
 
                         Divider()
 
-                        Text("**1. Chrome sync decides whether a deletion sticks.** With sync on, your saved passwords live in your Google Account ([passwords.google.com](https://passwords.google.com)) and sync down to every signed-in device. Deleting there is authoritative — it propagates **down** to all your devices and doesn't come back up, because nothing sits above the account store to restore it. ReKey's `rekey-cleanup` instead edits Chrome's **local** store; with sync on, the account store can re-push those entries on the next launch and undo the deletion. So if you use Chrome sync, delete from **Google Password Manager** (passwords.google.com), or verify on a few that a local deletion sticks. With sync **off**, the local store is the source of truth and `rekey-cleanup`'s deletion is the real thing.")
+                        Text("**1. Chrome sync decides whether a deletion sticks.** With sync on, your saved passwords live in your Google Account ([passwords.google.com](https://passwords.google.com)) and sync down to every signed-in device. Deleting there is authoritative — it propagates **down** to all your devices and doesn't come back up, because nothing sits above the account store to restore it. Deleting from a browser's **local** store instead (rather than the account) can be undone: with sync on, the account store can re-push those entries on the next launch. So if you use Chrome sync, delete from **Google Password Manager** (passwords.google.com), or verify a local deletion actually sticks. With sync **off**, the local store is the source of truth and a local deletion is the real thing.")
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Text("**2. Each store only warns about itself.** Chrome warns about Chrome's store, Firefox about Firefox's — they don't share. And **Apple Passwords / iCloud Keychain** has its own breach warnings that `rekey-cleanup` can't touch (there's no third-party delete API). If the same login also lives there, that warning stays until you remove it by hand in System Settings → Passwords.")
+                        Text("**2. Each store only warns about itself.** Chrome warns about Chrome's store, Firefox about Firefox's — they don't share. And **Apple Passwords / iCloud Keychain** has its own breach warnings that no third-party tool can delete (there's no third-party delete API). If the same login also lives there, that warning stays until you remove it by hand in System Settings → Passwords.")
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Text("**3. The warning going away isn't the risk going away.** Deleting a saved entry only stops the manager from nagging. It doesn't change the password on the live site, and the breach itself is permanent. For an account you're **done with**, deleting is the right call — that's **Cull**. For one you **still use**, deleting just hides the warning and leaves you exposed if you reuse that password — change it instead, in the **Fix Queue**.")
+                        Text("**3. The warning going away isn't the risk going away.** Deleting a saved entry only stops the manager from nagging. It doesn't change the password on the live site, and the breach itself is permanent. For an account you're **done with**, deleting it from the browser (or Google Password Manager) is the right call. For one you **still use**, deleting just hides the warning and leaves you exposed if you reuse that password — change it instead, which is what the **Fix Queue** is for.")
                             .fixedSize(horizontal: false, vertical: true)
 
                         Text("**4. Logging in again re-creates the entry.** Sign in to a site and the browser offers to save the password again → it reappears (and syncs back up). That's new data, not a restore — the most common reason a “deleted” password comes back.")
@@ -49,9 +51,13 @@ struct HelpView: View {
 
                 // Act on the advice above without hunting through the sidebar.
                 HStack(spacing: 10) {
+                    // The Cull tab is direct-build only (App Store build has no
+                    // outright-delete flow), so only offer the jump there.
+                    #if !MAS_BUILD
                     Button { model.section = .cull } label: {
                         Label("Cull dead logins", systemImage: "trash")
                     }
+                    #endif
                     Button { model.section = .fixing } label: {
                         Label("Re-key in Fix Queue", systemImage: "checkmark.shield")
                     }

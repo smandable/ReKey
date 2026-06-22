@@ -78,6 +78,20 @@ public final class AppModel {
             case .settings: return "gearshape"
             }
         }
+
+        /// Sections shown in the sidebar. The Mac App Store build is a pure
+        /// auditor + fixer: outright deletion (Cull / Clean Up) routes to the
+        /// separate, non-sandboxed `rekey-cleanup` tool, which can't ship inside a
+        /// sandboxed MAS app — so those tabs are dropped there. The direct build
+        /// keeps everything. (The enum keeps all cases so every exhaustive switch
+        /// stays intact; MAS just never navigates to the dropped ones.)
+        public static var sidebar: [Section] {
+            #if MAS_BUILD
+            return allCases.filter { $0 != .cull && $0 != .cleanup }
+            #else
+            return allCases
+            #endif
+        }
     }
 
     public var section: Section = .importing

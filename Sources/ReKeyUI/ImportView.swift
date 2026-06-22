@@ -144,6 +144,19 @@ struct ImportView: View {
         VStack(alignment: .leading, spacing: 6) {
             Label("Switched browsers over the years?", systemImage: "arrow.triangle.branch")
                 .font(.headline)
+            // The "old copies" bullet differs by build: the direct build points at
+            // the rekey-cleanup Terminal tool; the App Store build (pure auditor)
+            // doesn't route users to Terminal, so it just explains the cleanup.
+            #if MAS_BUILD
+            Text("""
+            Export and import from **every** browser you've used (Chrome, Firefox, Arc, …) — ReKey audits them together, so a password reused across them is caught.
+
+            • **Fixing** opens each change page in your **default browser**, and that browser saves the new password. So set your macOS default (System Settings → Desktop & Dock → Default web browser) to the browser you want to keep using — it becomes your single, current store.
+            • **Old copies** left in browsers you've stopped using don't disappear on their own. ReKey never deletes anything — once you've re-keyed an account, remove the stale saved login from that browser's password manager (or Google Password Manager) when you're ready.
+            """)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            #else
             Text("""
             Export and import from **every** browser you've used (Chrome, Firefox, Arc, …) — ReKey audits them together, so a password reused across them is caught.
 
@@ -152,6 +165,7 @@ struct ImportView: View {
             """)
             .font(.callout)
             .foregroundStyle(.secondary)
+            #endif
         }
         .padding(.top, 4)
     }

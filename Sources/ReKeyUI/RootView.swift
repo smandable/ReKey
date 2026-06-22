@@ -17,7 +17,7 @@ public struct RootView: View {
             // Buttons set the section directly and draw their own highlight.
             ScrollView {
                 VStack(spacing: 2) {
-                    ForEach(AppModel.Section.allCases) { section in
+                    ForEach(AppModel.Section.sidebar) { section in
                         SidebarRow(
                             section: section,
                             isSelected: model.section == section,
