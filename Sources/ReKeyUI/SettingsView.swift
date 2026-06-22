@@ -9,6 +9,8 @@ struct SettingsView: View {
     @AppStorage(Prefs.avoidLookAlikes) private var avoidLookAlikes = false
     @AppStorage(Prefs.keepOnTop) private var keepOnTop = true
 
+    @Bindable var store: Store
+
     private let styles = [Prefs.styleStrong, Prefs.styleLettersDigits, Prefs.stylePassphrase]
 
     var body: some View {
@@ -78,6 +80,28 @@ struct SettingsView: View {
                     }
                     .padding(8).frame(maxWidth: .infinity, alignment: .leading)
                 } label: { Label("New password defaults", systemImage: "key") }
+
+                #if MAS_BUILD
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if store.isUnlocked {
+                            Label("Fixing unlocked — thank you!", systemImage: "checkmark.seal.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("The audit is free; the Fix Queue unlocks with a one-time purchase. Bought it already (e.g. on another Mac)? Restore it here.")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Restore Purchase") { Task { await store.restore() } }
+                                .disabled(store.working)
+                            if let error = store.lastError {
+                                Text(error).font(.caption).foregroundStyle(.red)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                } label: { Label("Purchase", systemImage: "creditcard") }
+                #endif
             }
             .padding(20)
             .frame(maxWidth: 640, alignment: .leading)

@@ -94,6 +94,10 @@ public final class AppModel {
         }
     }
 
+    /// The in-app-purchase unlock (App Store build). Always unlocked in the direct
+    /// build, so the Fix Queue gate below is a no-op there.
+    public let store = Store()
+
     public var section: Section = .importing
     public private(set) var files: [ImportedFile] = []
     public private(set) var report: AuditReport?

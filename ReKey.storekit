@@ -1,0 +1,30 @@
+{
+  "identifier" : "B7A1F0C2-7E2E-4E7E-9E2A-REKEYSTOREKIT1",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "12.99",
+      "familyShareable" : false,
+      "internalID" : "1AF2C0D4-1111-2222-3333-REKEYUNLOCK01",
+      "localizations" : [
+        {
+          "description" : "Unlock the Fix Queue: generate strong replacements and open each site's change-password page. A one-time purchase.",
+          "displayName" : "Unlock Fixing",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.seanmandable.rekey.unlock",
+      "referenceName" : "Unlock Fixing",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

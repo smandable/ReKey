@@ -14,6 +14,20 @@ struct FixQueueView: View {
     @State private var showRunHelp = false
 
     var body: some View {
+        // App Store build: the audit is free, the fix tools are a one-time unlock.
+        // In the direct build store.isUnlocked is always true, so this is a no-op.
+        #if MAS_BUILD
+        if model.store.isUnlocked {
+            queueContent
+        } else {
+            PaywallView(store: model.store, waitingCount: model.fixProgress.total)
+        }
+        #else
+        queueContent
+        #endif
+    }
+
+    private var queueContent: some View {
         ScrollView {
             // LazyVStack, not VStack: "Add all to queue" on a large import can queue
             // thousands of cards; eager building of them all freezes the main thread.

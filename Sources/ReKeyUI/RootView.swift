@@ -48,7 +48,7 @@ public struct RootView: View {
         case .cull: CullView(model: model)
         case .cleanup: CleanupView(model: model)
         case .help: HelpView(model: model)
-        case .settings: SettingsView()
+        case .settings: SettingsView(store: model.store)
         }
     }
 
