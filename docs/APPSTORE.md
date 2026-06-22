@@ -18,13 +18,13 @@ mention deletion or the `rekey-cleanup` CLI, which aren't part of this app.
   - Type: **Non-Consumable**
   - Reference Name: `Unlock Fixing`
   - Product ID: `com.seanmandable.rekey.unlock`  ← must match `Store.unlockProductID`
-  - Price: **$12.99** (Tier 13)
+  - Price: **$11.99** (select the $11.99 price point; the old numbered "tiers" are deprecated)
   - Display Name: `Unlock Fixing`
   - Description: "Unlock the Fix Queue: generate strong replacements and open each
     site's change-password page. A one-time purchase."
   - Submit the IAP **together with** the app's first version (review them as a pair).
 - Enroll in the **App Store Small Business Program** (one-time, App Store Connect) →
-  Apple's cut drops 30% → 15%, so $12.99 nets ≈ $11.04.
+  Apple's cut drops 30% → 15%, so $11.99 nets ≈ $10.19.
 
 ## Name (≤30)
 ReKey - Website Password Audit
