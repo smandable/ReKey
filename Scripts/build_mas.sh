@@ -57,6 +57,20 @@ cp "$ROOT/App/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$ROOT/App/PrivacyInfo.xcprivacy" "$APP/Contents/Resources/PrivacyInfo.xcprivacy"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
+echo "==> Compiling asset catalog (App Store requires a compiled icon catalog)…"
+ACTOOL_OUT="$(mktemp -d)"
+xcrun actool "$ROOT/App/Assets.xcassets" \
+    --compile "$ACTOOL_OUT" \
+    --platform macosx \
+    --minimum-deployment-target 15.0 \
+    --app-icon AppIcon \
+    --output-partial-info-plist "$ACTOOL_OUT/partial.plist" \
+    --errors --warnings >/dev/null
+cp "$ACTOOL_OUT/Assets.car" "$APP/Contents/Resources/Assets.car"
+[[ -f "$ACTOOL_OUT/AppIcon.icns" ]] && cp "$ACTOOL_OUT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+# Merge actool's icon keys (CFBundleIconName etc.) into the app Info.plist.
+/usr/libexec/PlistBuddy -c "Merge $ACTOOL_OUT/partial.plist" "$APP/Contents/Info.plist" 2>/dev/null || true
+
 echo "==> Embedding provisioning profile…"
 cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"
 
@@ -65,9 +79,21 @@ cp "$BASE_ENT" "$MAS_ENT"
 /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string ${TEAM_ID}.${BUNDLE_ID}" "$MAS_ENT"
 /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string ${TEAM_ID}" "$MAS_ENT"
 
+# Strip extended attributes (e.g. com.apple.quarantine on the downloaded
+# provisioning profile) — App Store validation rejects any xattrs in the bundle.
+echo "==> Stripping extended attributes…"
+xattr -cr "$APP"
+
 echo "==> Signing nested resource bundles…"
 shopt -s nullglob
 for bundle in "$APP/Contents/Resources/"*.bundle; do
+    # SwiftPM stamps these resource-only bundles with a CFBundleExecutable key, but
+    # they contain no binary — App Store validation rejects that (409 "Bad
+    # CFBundleExecutable"). Strip the key before signing so codesign re-seals the
+    # corrected Info.plist. (Resource loading doesn't use CFBundleExecutable.)
+    plist="$bundle/Contents/Info.plist"
+    [[ -f "$plist" ]] || plist="$bundle/Info.plist"
+    /usr/libexec/PlistBuddy -c "Delete :CFBundleExecutable" "$plist" 2>/dev/null || true
     codesign --force --sign "$SIGN_APP" --timestamp --options runtime "$bundle"
 done
 shopt -u nullglob

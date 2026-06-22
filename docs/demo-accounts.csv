@@ -1,0 +1,13 @@
+name,url,username,password,note
+StreamFlix,https://streamflix.com/login,demo.user@example.com,Summer2019!,
+BookNest,https://booknest.com/account,demo.user@example.com,Summer2019!,
+Pinspire,https://pinspire.com/signin,demo.user@example.com,Summer2019!,
+GameHub,https://gamehub.com/login,demo.user@example.com,Summer2019!,
+CloudStash,https://cloudstash.com/login,demo.user@example.com,password123,
+WorkLink,https://worklink.com/auth,demo.user@example.com,qwerty123,
+PhotoEdit,https://photoedit.com/login,demo.user@example.com,letmein1,
+ShopMart,https://shopmart.com/account,demo.user@example.com,iloveyou,
+OldForum,https://oldforum.com/ucp.php,demouser,123456,
+DealsWeekly,https://dealsweekly.com/signup,demouser,abc123,
+SecureBank,https://securebank-demo.com/login,demo.user@example.com,7Gx!q2&vLp9@Rm,
+PrivMail,https://privmail-demo.com/login,demo.user@example.com,kT4#nW8$zB1!cF6,
