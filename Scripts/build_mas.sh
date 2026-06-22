@@ -50,6 +50,16 @@ rm -rf "$APP" "$PKG" "$MAS_ENT"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_PATH/ReKey" "$APP/Contents/MacOS/ReKey"
 cp "$INFO_PLIST" "$APP/Contents/Info.plist"
+
+# Auto-stamp a unique, strictly-increasing build number — App Store Connect rejects
+# a re-used CFBundleVersion, and you should never have to hand-bump it. Date-based so
+# it's monotonic and self-documenting (when the build was made). Override with
+# BUILD_NUMBER=… for an explicit value. The marketing version
+# (CFBundleShortVersionString) is untouched — bump that by hand for a new release.
+BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d.%H%M%S)}"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
+echo "==> Build number (CFBundleVersion): $BUILD_NUMBER"
+
 shopt -s nullglob
 for bundle in "$BIN_PATH"/*.bundle; do cp -R "$bundle" "$APP/Contents/Resources/"; done
 shopt -u nullglob
