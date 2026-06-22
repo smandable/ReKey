@@ -16,9 +16,20 @@ APP="$ROOT/ReKey.app"
 ENTITLEMENTS="$ROOT/App/ReKey.entitlements"
 INFO_PLIST="$ROOT/App/Info.plist"
 
+# MAS=1 builds the App Store (pure-auditor) variant with the paywall, ad-hoc
+# signed so it still runs locally — handy for grabbing the IAP/paywall screenshot.
+# (StoreKit can't load the real product outside the store, so the Unlock button
+# shows without a price — fine for the App Store Connect review screenshot.)
+# Plain string (not an array) so empty expansion is safe under macOS bash 3.2 + set -u.
+MAS_FLAGS=""
+if [[ "${MAS:-}" == "1" ]]; then
+    MAS_FLAGS="-Xswiftc -DMAS_BUILD"
+    echo "==> MAS_BUILD variant (paywall enabled)"
+fi
+
 echo "==> Building ReKey ($CONFIG)…"
-swift build -c "$CONFIG" --product ReKey
-BIN_PATH="$(swift build -c "$CONFIG" --product ReKey --show-bin-path)"
+swift build -c "$CONFIG" --product ReKey $MAS_FLAGS
+BIN_PATH="$(swift build -c "$CONFIG" --product ReKey $MAS_FLAGS --show-bin-path)"
 
 echo "==> Assembling $APP …"
 rm -rf "$APP"
