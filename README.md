@@ -8,6 +8,18 @@ is approved by you, and ReKey never changes a password itself.**
 
 Bundle ID: `com.seanmandable.rekey` · macOS 15+ · Swift 6 · arm64.
 
+## Download
+
+- **Mac App Store** — *in review; link coming once it's approved.* The App Store
+  edition is a streamlined auditor + fixer (free to download and audit), with a
+  one-time in-app unlock for the fix tools.
+- **Direct download (full version)** — get the latest
+  **[ReKey.dmg](https://github.com/smandable/ReKey/releases/latest)**, open it, and
+  drag **ReKey** to Applications. Signed with Developer ID and notarized by Apple,
+  so it runs with no Gatekeeper warning. Universal (Apple Silicon + Intel),
+  macOS 15+. This build includes everything — Cull / Clean Up (the `rekey-cleanup`
+  workflow) and free fixing.
+
 **Questions about deleting passwords** — e.g. why a "compromised" warning can
 linger after you delete a login, or how Chrome sync affects it — see
 [Help & FAQ](docs/HELP.md) (also in the app's **Help** section).
