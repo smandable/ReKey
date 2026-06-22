@@ -6,12 +6,21 @@ mention deletion or the `rekey-cleanup` CLI, which aren't part of this app.
 
 ---
 
+## App record (permanent, non-localized)
+- Bundle ID: `com.seanmandable.rekey`
+- SKU: `com.seanmandable.rekey`
+- Platform: macOS · Primary language: English
+
 ## Name (≤30)
-ReKey
+ReKey - Website Password Audit
+<!-- exactly 30 chars (the limit). The in-app name / CFBundleName stays "ReKey";
+     this is only the App Store listing name. Reserve it in App Store Connect to
+     confirm availability (the authoritative check). -->
 
 ## Subtitle (≤30)
-Audit your saved passwords
-<!-- alternates: "Find weak & reused passwords" (28) · "Spot reused & breached logins" (29) -->
+Find reused & breached logins
+<!-- complements the name without repeating "password/audit". alternates:
+     "Spot weak & reused logins" (25) · "Your password health, checked" (29) -->
 
 ## Category
 Primary: Utilities
