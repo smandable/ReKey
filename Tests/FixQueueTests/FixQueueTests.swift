@@ -1,6 +1,5 @@
 import Testing
 import Foundation
-import CryptoKit
 import Model
 import PasswordGenerator
 import ResetRouter
@@ -10,10 +9,22 @@ import ResetRouter
 
 @MainActor
 final class FakePasteboard: PasteboardWriting {
-    var value: String?
-    func writeString(_ value: String) { self.value = value }
-    func readString() -> String? { value }
-    func clearContents() { value = nil }
+    /// Backing contents. Assigning it (including directly in a test, to simulate
+    /// the user copying something else) bumps `changeCount`, mirroring how every
+    /// real write to `NSPasteboard` moves its change count.
+    var value: String? { didSet { changeCount += 1 } }
+    /// Set by `writeConcealedString` so a test can assert the password was written
+    /// through the concealed path rather than a plain write.
+    private(set) var wroteConcealed = false
+    private(set) var changeCount = 0
+
+    @discardableResult
+    func writeConcealedString(_ value: String) -> Int {
+        wroteConcealed = true
+        self.value = value      // bumps changeCount via didSet
+        return changeCount
+    }
+    func clearContents() { value = nil }   // bumps changeCount via didSet
 }
 
 @MainActor
@@ -240,19 +251,19 @@ struct FixQueueTests {
         }
     }
 
-    @Test("Hash-based clear wipes only on a matching value")
-    func clearIfMatchesHash() {
+    @Test("Change-count clear wipes only when the pasteboard is untouched since the copy")
+    func clearIfUnchanged() {
         let pb = FakePasteboard()
         let clip = Clipboard(pasteboard: pb)
-        clip.copy(Secret("abc123"))
-        let digest = Data(SHA256.hash(data: Data("abc123".utf8)))
-        // Different contents -> no clear.
+        let token = clip.copy(Secret("abc123"))
+        #expect(pb.wroteConcealed)            // copied through the concealed path
+        // Something else got copied since -> change count moved -> no clear.
         pb.value = "different"
-        #expect(clip.clearIfMatchesHash(digest) == false)
+        #expect(clip.clearIfUnchanged(since: token) == false)
         #expect(pb.value == "different")
-        // Matching contents -> clear.
-        pb.value = "abc123"
-        #expect(clip.clearIfMatchesHash(digest) == true)
+        // Re-copy our value; the pasteboard is ours and untouched -> clear.
+        let token2 = clip.copy(Secret("abc123"))
+        #expect(clip.clearIfUnchanged(since: token2) == true)
         #expect(pb.value == nil)
     }
 
@@ -303,7 +314,7 @@ struct FixQueueTests {
         #expect(opener.opened.isEmpty)   // copy buttons never navigate
     }
 
-    @Test("copySecret schedules the same hash-based auto-clear as approve")
+    @Test("copySecret schedules the same change-count auto-clear as approve")
     func copySecretAutoClears() async throws {
         let (queue, pasteboard, _) = try makeQueue(clearAfter: .milliseconds(40))
         queue.copySecret(Secret("temp-current-pw"))

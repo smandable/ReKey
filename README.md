@@ -61,7 +61,7 @@ the shared **ReKey** scheme is the app.)
 # Or build the app from the command line, no Xcode UI:
 xcodebuild -project ReKey.xcodeproj -scheme ReKey -configuration Release build
 
-# Run the full test suite (91 tests, no network — HIBP & reset are mocked)
+# Run the full test suite (224 tests, no network — HIBP & reset are mocked)
 swift test
 
 # Run from source (dev)
@@ -130,8 +130,10 @@ security-scoped bookmark; *Stop* forgets it.
 3. **Fix queue** — for each credential you choose to fix, a preview card shows the
    masked old password (with reveal), a freshly generated replacement (with
    regenerate + policy controls + a passphrase option), and the resolved change
-   URL. **Approve** copies the new password, opens the change page, and clears
-   the clipboard ~90s later. You change it on the site and mark it done.
+   URL. **Approve** copies the new password (marked concealed, so clipboard
+   managers that honor the macOS convention keep it out of their history), opens
+   the change page, and clears the clipboard ~90s later. You change it on the
+   site and mark it done.
 
 ### Password generation
 

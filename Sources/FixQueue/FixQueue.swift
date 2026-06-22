@@ -198,13 +198,14 @@ public final class FixQueue {
     }
 
     /// Copy a secret to the clipboard with the same hygiene as Approve: the
-    /// plaintext is written, and an auto-clear is scheduled by hash so we don't
-    /// hold the password alive for the whole timeout. Used by the per-field copy
+    /// plaintext is written (marked concealed), and an auto-clear is scheduled
+    /// against the clipboard's change count so we never hold the password alive
+    /// for the timeout or read the clipboard back. Used by the per-field copy
     /// buttons so the user can paste the current password (many sites require it
     /// to authorize the change) and the new one into the site's form.
     public func copySecret(_ secret: Secret) {
-        clipboard.copy(secret)
-        scheduleClipboardClear(matchingHash: secret.sha256())
+        let token = clipboard.copy(secret)
+        scheduleClipboardClear(token: token)
     }
 
     /// Open (or re-open) an item's change page in the chosen browser, without
@@ -243,10 +244,14 @@ public final class FixQueue {
 
     // MARK: - Clipboard hygiene
 
-    /// After the timeout, clear the clipboard if it still holds the copied value
-    /// (compared by hash, so no plaintext is captured). If the user copied
-    /// something else in the meantime, leave it.
-    private func scheduleClipboardClear(matchingHash digest: Data) {
+    /// After the timeout, clear the clipboard if nothing has been copied since —
+    /// compared by the pasteboard's change count, so the timer never reads the
+    /// clipboard contents (no plaintext captured, no macOS pasteboard-read
+    /// prompt). If the user copied something else in the meantime, leave it.
+    /// (The generation guard short-circuits superseded timers; the change-count
+    /// check is the real safety net, so a re-copy still effectively resets the
+    /// clock even without it.)
+    private func scheduleClipboardClear(token: Int) {
         clipboardCopyGeneration += 1
         let generation = clipboardCopyGeneration   // a later copy resets the clock
         let delay = clipboardClearAfter
@@ -254,7 +259,7 @@ public final class FixQueue {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: delay)
             guard let self, generation == self.clipboardCopyGeneration else { return }
-            clipboard.clearIfMatchesHash(digest)
+            clipboard.clearIfUnchanged(since: token)
         }
     }
 
