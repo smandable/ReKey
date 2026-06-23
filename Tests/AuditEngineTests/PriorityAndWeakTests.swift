@@ -32,9 +32,13 @@ struct PriorityAndWeakTests {
     func important() {
         #expect(DomainPriority.isImportant("google.com"))
         #expect(DomainPriority.isImportant("chase.com"))
-        #expect(DomainPriority.isImportant("mylocalbank.com"))     // keyword "bank"
-        #expect(DomainPriority.isImportant("fastmail.com"))
+        #expect(DomainPriority.isImportant("mylocalbank.com"))     // keyword "bank" (suffix)
+        #expect(DomainPriority.isImportant("fastmail.com"))        // "mail" (suffix)
+        #expect(DomainPriority.isImportant("bankofamerica.com"))   // "bank" (prefix)
         #expect(!DomainPriority.isImportant("example.xyz"))
+        // Interior matches no longer over-prioritize / aren't gameable:
+        #expect(!DomainPriority.isImportant("riverbankcafe.com"))  // "bank" interior
+        #expect(!DomainPriority.isImportant("secure-bank-login.com"))
     }
 
     @Test("Prioritized groups are worst-first; clean last")

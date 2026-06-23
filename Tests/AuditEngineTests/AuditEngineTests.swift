@@ -147,6 +147,24 @@ struct AuditEngineTests {
         #expect(r.crossEcosystemDuplicates == [appleChase.id, chromeChase.id])
     }
 
+    @Test("Account grouping doesn't collide when domain/username contain the separator")
+    func groupingKeyNoCollision() async {
+        func cred(_ source: BrowserSource, _ domain: String, _ user: String) -> ImportedCredential {
+            ImportedCredential(source: source, title: nil, rawURL: "https://x/",
+                               registrableDomain: domain, username: user,
+                               password: Secret(UUID().uuidString), notes: nil, hasTOTP: false)
+        }
+        // As "domain|username" strings these both render "x|y|z", but they are two
+        // DIFFERENT accounts — the old string key would merge them and wrongly flag
+        // them cross-ecosystem (one Apple, one browser). The AccountKey struct keeps
+        // them distinct.
+        let a = cred(.applePasswords, "x", "y|z")
+        let b = cred(.chrome, "x|y", "z")
+        let r = await AuditCoordinator(compromiseChecker: StubChecker(compromised: [], count: 0))
+            .audit(credentials: [a, b])
+        #expect(r.crossEcosystemDuplicates.isEmpty)
+    }
+
     @Test("Flags an account saved across 2+ browsers; Apple-only pairings don't count")
     func multiBrowserAccounts() async {
         func cred(_ source: BrowserSource, _ domain: String, _ user: String) -> ImportedCredential {

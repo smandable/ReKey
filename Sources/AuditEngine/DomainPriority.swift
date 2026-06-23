@@ -5,7 +5,13 @@ import Foundation
 public enum DomainPriority {
     public static func isImportant(_ domain: String) -> Bool {
         if importantDomains.contains(domain) { return true }
-        return keywords.contains { domain.contains($0) }
+        // Match keywords against the registrable domain's MAIN LABEL (the part
+        // before the public suffix), and only as a whole label, prefix, or suffix —
+        // never an interior substring. A bare `contains` floated innocuous domains
+        // ("riverbankcafe.com") and was trivially gameable ("secure-bank-login.com")
+        // while still catching the real "bankofamerica"/"mylocalbank"/"fastmail".
+        let mainLabel = domain.split(separator: ".").first.map(String.init) ?? domain
+        return keywords.contains { mainLabel == $0 || mainLabel.hasPrefix($0) || mainLabel.hasSuffix($0) }
     }
 
     /// Keyword fallback for the long tail (regional banks, mail hosts, …).

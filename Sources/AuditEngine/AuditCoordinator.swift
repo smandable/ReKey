@@ -1,6 +1,19 @@
 import Foundation
 import Model
 
+/// A (registrable domain, username) account key for grouping — a Hashable struct
+/// instead of a `"domain|username"` string, so a `|` in either field can't
+/// collide two different accounts into one group (e.g. domain `a`/user `b|c` vs
+/// domain `a|b`/user `c`).
+private struct AccountKey: Hashable {
+    let domain: String
+    let username: String
+    init(_ c: ImportedCredential) {
+        domain = c.registrableDomain
+        username = c.username
+    }
+}
+
 /// A registrable domain and the credentials grouped under it, for the findings
 /// view (which lists sites alphabetically).
 public struct DomainGroup: Identifiable, Sendable, Equatable {
@@ -214,7 +227,7 @@ public struct AuditCoordinator: Sendable {
         // both an Apple store and a non-Apple store. These don't sync to each
         // other, so a fix in one place won't reach the other (notably on iOS).
         var crossEcosystem: Set<UUID> = []
-        for (_, group) in Dictionary(grouping: credentials, by: { "\($0.registrableDomain)|\($0.username)" }) {
+        for (_, group) in Dictionary(grouping: credentials, by: { AccountKey($0) }) {
             let hasApple = group.contains { $0.source.isApple }
             let hasNonApple = group.contains { !$0.source.isApple }
             if hasApple && hasNonApple { crossEcosystem.formUnion(group.map(\.id)) }
@@ -232,7 +245,7 @@ public struct AuditCoordinator: Sendable {
         // don't sync). Map each such credential to the browser stores its account
         // spans, so the UI can nudge "consolidate into one password manager".
         var multiBrowser: [UUID: [BrowserSource]] = [:]
-        for (_, group) in Dictionary(grouping: credentials, by: { "\($0.registrableDomain)|\($0.username)" }) {
+        for (_, group) in Dictionary(grouping: credentials, by: { AccountKey($0) }) {
             let browsers = Set(group.map(\.source).filter { !$0.isApple })
             guard browsers.count >= 2 else { continue }
             let sorted = browsers.sorted { $0.displayName < $1.displayName }
@@ -254,7 +267,13 @@ public struct AuditCoordinator: Sendable {
                 let highest = creds.map { severity(of: $0.id) }.max() ?? -1
                 return DomainGroup(
                     registrableDomain: domain,
-                    credentials: creds.sorted { $0.username < $1.username },
+                    // Total, stable order: username, then source, then the
+                    // deterministic id — so ties don't reorder run to run.
+                    credentials: creds.sorted {
+                        if $0.username != $1.username { return $0.username < $1.username }
+                        if $0.source.rawValue != $1.source.rawValue { return $0.source.rawValue < $1.source.rawValue }
+                        return $0.id.uuidString < $1.id.uuidString
+                    },
                     highestSeverity: highest
                 )
             }
