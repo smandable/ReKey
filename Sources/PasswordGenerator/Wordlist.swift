@@ -38,8 +38,20 @@ enum Wordlist {
             throw PasswordError.wordlistUnavailable
         }
 
+        return try parse(contents)
+    }
+
+    /// Parse `<dice-number>\t<word>` lines into their words and verify the result
+    /// is exactly `expected` distinct words. The count + uniqueness checks are the
+    /// point: a list that came up short (dropped/malformed lines) or carried
+    /// duplicates would quietly lower passphrase entropy below the advertised
+    /// log2(7776) ≈ 12.9 bits per word, so we fail loudly instead.
+    ///
+    /// `expected` is a parameter (defaulting to the EFF count) so the integrity
+    /// rules are unit-testable against small synthetic lists.
+    static func parse(_ contents: String, expected: Int = expectedCount) throws -> [String] {
         var words: [String] = []
-        words.reserveCapacity(expectedCount)
+        words.reserveCapacity(expected)
 
         // Split on any newline; tolerate trailing blank lines and \r\n.
         for rawLine in contents.split(whereSeparator: { $0 == "\n" || $0 == "\r" }) {
@@ -52,8 +64,12 @@ enum Wordlist {
             }
         }
 
-        guard !words.isEmpty else {
-            throw PasswordError.wordlistUnavailable
+        guard words.count == expected else {
+            throw PasswordError.wordlistInvalid(
+                "expected \(expected) words, parsed \(words.count)")
+        }
+        guard Set(words).count == words.count else {
+            throw PasswordError.wordlistInvalid("wordlist contains duplicate entries")
         }
 
         return words

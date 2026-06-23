@@ -18,7 +18,9 @@ public struct PasswordGenerator: Sendable {
         self.words = try Wordlist.load()
     }
 
-    private init(words: [String]) { self.words = words }
+    /// Direct construction from a word array — used by `bestEffort()` and, via
+    /// `@testable`, by tests that need a degraded (e.g. empty) wordlist.
+    init(words: [String]) { self.words = words }
 
     /// Construction that never throws, for the app's long-lived generator: if the
     /// bundled wordlist can't be read (a corrupt app bundle), character-based
@@ -26,6 +28,14 @@ public struct PasswordGenerator: Sendable {
     /// not as a launch crash.
     public static func bestEffort() -> PasswordGenerator {
         PasswordGenerator(words: (try? Wordlist.load()) ?? [])
+    }
+
+    /// Whether this generator can produce full-entropy passphrases — i.e. the
+    /// bundled wordlist loaded with its full, unique word set. False after a
+    /// `bestEffort()` construction where the list failed to load, so a caller can
+    /// disable passphrase mode rather than hit a thrown error mid-flow.
+    public var canGeneratePassphrases: Bool {
+        words.count == Wordlist.expectedCount
     }
 
     // MARK: - Unbiased randomness
@@ -215,7 +225,13 @@ public struct PasswordGenerator: Sendable {
         guard wordCount >= 1 else {
             throw PasswordError.invalidArgument("wordCount must be >= 1, got \(wordCount)")
         }
-        guard !words.isEmpty else { throw PasswordError.wordlistUnavailable }
+        // Require the FULL list, not merely a non-empty one: drawing each word
+        // from fewer than `expectedCount` choices would silently lower entropy
+        // below the advertised log2(7776) bits/word. `load()` already enforces
+        // this, so the only way to be short here is a failed `bestEffort()` load.
+        guard words.count == Wordlist.expectedCount else {
+            throw PasswordError.wordlistUnavailable
+        }
 
         var picked: [String] = []
         picked.reserveCapacity(wordCount)

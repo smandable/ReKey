@@ -16,6 +16,11 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 ## [Unreleased] — 1.1.0
 
 ### Security
+- **Passphrase entropy is now guaranteed.** The bundled EFF wordlist is verified at
+  load to be the full, unique 7,776-word set; a short or duplicate-laden list now
+  fails loudly instead of silently producing lower-entropy passphrases. Self-test
+  checks completeness, and the generator exposes whether passphrases are available
+  so the UI can degrade gracefully. [auditor]
 - **Closed a heredoc target-smuggling hole in generated cleanup scripts (critical).**
   A site or username derived from an untrusted CSV could embed a newline or the
   literal heredoc delimiter and smuggle extra delete targets — or arbitrary shell —

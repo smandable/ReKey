@@ -44,6 +44,54 @@ func wordlistHasExpectedCount() throws {
     })
 }
 
+// MARK: - Wordlist integrity (count + uniqueness)
+
+@Test
+func wordlistParseAcceptsExactCountUniqueWords() throws {
+    let contents = "11111\tone\n22222\ttwo\n33333\tthree\n"
+    #expect(try Wordlist.parse(contents, expected: 3) == ["one", "two", "three"])
+}
+
+@Test
+func wordlistParseRejectsShortList() throws {
+    // A dropped/malformed line leaves fewer words than expected → must throw,
+    // not silently lower entropy.
+    let contents = "11111\tone\n22222\ttwo\n"
+    #expect(throws: PasswordError.self) {
+        _ = try Wordlist.parse(contents, expected: 3)
+    }
+}
+
+@Test
+func wordlistParseRejectsDuplicates() throws {
+    // Duplicate words make some draws more likely → real entropy < log2(count).
+    let contents = "11111\tone\n22222\tone\n33333\ttwo\n"
+    #expect(throws: PasswordError.self) {
+        _ = try Wordlist.parse(contents, expected: 3)
+    }
+}
+
+@Test
+func bundledWordlistIsCompleteAndUnique() throws {
+    // The real bundled list must pass the same integrity bar the app relies on.
+    let words = try Wordlist.load()
+    #expect(words.count == Wordlist.expectedCount)
+    #expect(Set(words).count == words.count)
+}
+
+@Test
+func passphraseGeneratorReportsCapability() throws {
+    // A real generator can make passphrases; a bestEffort one with no list can't,
+    // and refuses rather than emitting a low-entropy phrase.
+    let real = try PasswordGenerator()
+    #expect(real.canGeneratePassphrases)
+    let empty = PasswordGenerator(words: [])   // simulates a failed bestEffort() load
+    #expect(!empty.canGeneratePassphrases)
+    #expect(throws: PasswordError.self) {
+        _ = try empty.generatePassphrase(wordCount: 6)
+    }
+}
+
 // MARK: - Charset coverage
 
 @Test
@@ -345,6 +393,34 @@ func randomIndexHandlesNonPowerOfTwoBoundUniformly() throws {
         let ratio = Double(c) / expected
         #expect(ratio > 0.85)
         #expect(ratio < 1.15)
+    }
+}
+
+@Test
+func randomIndexHandlesFullWidthBounds() throws {
+    // Bounds > 2^56 force byteCount == 8 — the 2^64-sentinel branch that the
+    // smaller-bound tests never reach.
+    //
+    // A power-of-two bound makes 2^64 an exact multiple of it (remainder 0), so
+    // `wholeSpaceValid` is true and every draw is accepted.
+    let powBound = 1 << 60
+    for _ in 0..<3000 {
+        let v = try PasswordGenerator.randomIndex(upperBound: powBound)
+        #expect(v >= 0 && v < powBound)
+    }
+
+    // A non-power-of-two bound forces the sentinel-branch remainder/acceptLimit
+    // arithmetic and the rejection loop (acceptLimit != 0, draws can be rejected).
+    let oddBound = (1 << 60) + 1
+    for _ in 0..<3000 {
+        let v = try PasswordGenerator.randomIndex(upperBound: oddBound)
+        #expect(v >= 0 && v < oddBound)
+    }
+
+    // Int.max is the largest possible bound and also exercises byteCount == 8.
+    for _ in 0..<1000 {
+        let v = try PasswordGenerator.randomIndex(upperBound: Int.max)
+        #expect(v >= 0 && v < Int.max)
     }
 }
 

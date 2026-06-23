@@ -11,6 +11,10 @@ public enum PasswordError: Error, Sendable, Equatable {
     case invalidArgument(String)
     /// The bundled wordlist could not be located or parsed.
     case wordlistUnavailable
+    /// The bundled wordlist loaded but failed an integrity check — the wrong
+    /// number of words, or duplicate entries — either of which would silently
+    /// lower passphrase entropy below what's advertised. Carries the reason.
+    case wordlistInvalid(String)
     /// The system CSPRNG (`SecRandomCopyBytes`) failed.
     case randomGenerationFailed
 }

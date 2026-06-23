@@ -20,8 +20,12 @@ public enum ReKeySelfTest {
         check("PSL: accounts.google.com -> google.com", psl.registrableDomain(of: "accounts.google.com") == "google.com")
         check("PSL: news.bbc.co.uk -> bbc.co.uk", psl.registrableDomain(of: "news.bbc.co.uk") == "bbc.co.uk")
 
-        // EFF wordlist (PasswordGenerator resource) + CSPRNG generation.
+        // EFF wordlist (PasswordGenerator resource) + CSPRNG generation. `init()`
+        // now throws unless the list loaded as the full, unique 7776-word set, so
+        // a successful init already proves wordlist integrity; assert it explicitly
+        // so a short or deduped list can't pass self-test with low-entropy phrases.
         if let gen = try? PasswordGenerator() {
+            check("generator: wordlist complete (7776 unique words)", gen.canGeneratePassphrases)
             let pw = (try? gen.generate(.strong))?.reveal() ?? ""
             check("generator: strong password >= 20 chars", pw.count >= 20)
             let phrase = (try? gen.generatePassphrase(wordCount: 6))?.reveal() ?? ""
