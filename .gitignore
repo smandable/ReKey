@@ -9,3 +9,8 @@ xcuserdata/
 .swiftpm/
 Package.resolved
 /screenshots
+
+# Internal security planning docs — these enumerate UNFIXED findings with
+# file:line locations; keep them out of the public repo (local-only working docs).
+/docs/ADVERSARIAL_REVIEW.md
+/docs/REMEDIATION.md

@@ -1,8 +1,17 @@
-# ReKey — App Store Connect metadata (draft)
+# ReKey — App Store Connect operational metadata
 
-Copy-paste into App Store Connect. Character limits noted; everything here
-describes the **App Store (pure-auditor) build** — it deliberately does **not**
-mention deletion or the `rekey-cleanup` CLI, which aren't part of this app.
+This file holds the **operational** App Store Connect settings that don't fit the
+listing-copy format: the app record, pricing & in-app purchase, App Privacy
+answers, and reviewer notes.
+
+**Listing copy** — App Name, Subtitle, Promotional Text, Description, Keywords,
+What's New, and Support/Marketing URLs — lives in
+[`app-store-text.md`](app-store-text.md) (the canonical going-forward file). Keep
+that one current; this file rarely changes.
+
+Everything here describes the **App Store (pure-auditor) build** — it deliberately
+does **not** mention deletion, the Cull tab, or the `rekey-cleanup` CLI, which
+aren't part of this app.
 
 ---
 
@@ -10,6 +19,7 @@ mention deletion or the `rekey-cleanup` CLI, which aren't part of this app.
 - Bundle ID: `com.seanmandable.rekey`
 - SKU: `com.seanmandable.rekey`
 - Platform: macOS · Primary language: English
+- Category: Primary **Utilities**
 
 ## Pricing & in-app purchase
 - **App price: Free** (Tier 0). The audit + Findings are fully free.
@@ -26,77 +36,8 @@ mention deletion or the `rekey-cleanup` CLI, which aren't part of this app.
 - Enroll in the **App Store Small Business Program** (one-time, App Store Connect) →
   Apple's cut drops 30% → 15%, so $12.99 nets ≈ $11.04.
 
-## Name (≤30)
-ReKey - Website Password Audit
-<!-- exactly 30 chars (the limit). The in-app name / CFBundleName stays "ReKey";
-     this is only the App Store listing name. Reserve it in App Store Connect to
-     confirm availability (the authoritative check). -->
-
-## Subtitle (≤30)
-Find reused & breached logins
-<!-- complements the name without repeating "password/audit". alternates:
-     "Spot weak & reused logins" (25) · "Your password health, checked" (29) -->
-
-## Category
-Primary: Utilities
-
-## Promotional text (≤170, editable anytime without review)
-ReKey checks the passwords you export from your browsers and Apple Passwords for
-reuse and known breaches — then helps you replace the weak ones. All on your Mac.
-
-## Keywords (≤100, comma-separated, no spaces)
-password,security,audit,breach,reuse,pwned,login,strength,privacy,duplicate,checkup,health,hibp
-
-## Description (≤4000)
-ReKey is a local-first password health auditor for your Mac. It turns the
-password CSVs you export from your browsers and Apple Passwords into a clear,
-prioritized to-do list — which logins are weak, reused, or caught in a known data
-breach — and walks you through fixing them, one site at a time.
-
-Everything happens on your Mac. ReKey has no account, no servers, and no
-analytics. Your passwords are held in memory only — never written to disk, never
-logged.
-
-WHAT IT DOES
-• Import the CSVs you export from Chrome, Arc, Brave, Edge, Firefox, and Apple
-  Passwords — ReKey audits them all together.
-• Find reused passwords across every browser, weak or short passwords, and
-  logins that appear in known breaches.
-• Check against Have I Been Pwned using k-anonymity: only the first 5 characters
-  of a hash ever leave your Mac — never your actual password.
-• Generate strong replacements (random or passphrase), tuned to your defaults.
-• Fix queue: ReKey opens each site's own change-password page in your browser,
-  and your browser saves the new one. You approve every change.
-
-PRIVACY BY DESIGN
-• ReKey never edits your credentials and never writes to any browser, Apple
-  Passwords, or the system keychain.
-• No analytics, telemetry, advertising, or tracking of any kind.
-• The only data that ever leaves your Mac is the k-anonymity breach-check prefix
-  and an on-demand lookup of the change-password page for the one site you're
-  fixing.
-• Sandboxed, and it reads only the files you explicitly choose.
-
-ReKey doesn't store your passwords — it's the checkup, not the vault. Run it
-whenever you want a fast, honest read on the health of your logins.
-
-The full audit is free. Unlocking the guided fix tools — strong-password
-generation and opening each site's change page — is a single one-time purchase.
-No subscription.
-
-## Support URL
-https://github.com/smandable/ReKey
-
-## Marketing URL (optional)
-https://github.com/smandable/ReKey
-
 ## Privacy Policy URL
 https://github.com/smandable/ReKey/blob/master/docs/PRIVACY.md
-
-## What's New (version 1.0)
-First release.
-
----
 
 ## App privacy answers (App Store Connect → App Privacy)
 - Do you or your third-party partners collect data from this app? **No.**
