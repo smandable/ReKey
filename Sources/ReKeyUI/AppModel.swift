@@ -110,6 +110,12 @@ public final class AppModel {
     /// Bumped on each `startAudit()`; only the latest-epoch run owns `report` and
     /// the `isAuditing` flag, so re-triggering doesn't race two audits.
     @ObservationIgnored private var auditEpoch = 0
+    /// The latest watched-folder scan, retained so a test can await its completion
+    /// (the scan now does off-actor reads, so it no longer finishes synchronously).
+    @ObservationIgnored private var scanTask: Task<Void, Never>?
+
+    /// Await the latest watched-folder scan — for tests driving auto-import.
+    func awaitScanForTesting() async { await scanTask?.value }
 
     /// Live progress of the running audit (nil when not auditing). Private so the
     /// AuditEngine type doesn't leak into the views — they read the derived
@@ -690,23 +696,28 @@ public final class AppModel {
     /// tests can lower it. (See `FolderScan`, which already records each file's size.)
     static var maxImportBytes = 64 * 1024 * 1024   // 64 MB
 
-    private func importByteSize(of url: URL) -> Int? {
-        (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
-    }
-
     private static func sizeString(_ bytes: Int) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
-    /// Import a file selected via the file picker (security-scoped URL).
-    public func importFile(at url: URL) {
-        let didScope = url.startAccessingSecurityScopedResource()
-        defer { if didScope { url.stopAccessingSecurityScopedResource() } }
-        if let size = importByteSize(of: url), size > Self.maxImportBytes {
-            auditError = "“\(url.lastPathComponent)” is too large to be a password export (\(Self.sizeString(size))) — skipped."
+    /// Import a file selected via the file picker (security-scoped URL). The size
+    /// check + read run off the main actor so a large file doesn't freeze the UI.
+    public func importFile(at url: URL) async {
+        let maxBytes = Self.maxImportBytes
+        let outcome: (data: Data?, oversize: Int?) = await Task.detached {
+            let didScope = url.startAccessingSecurityScopedResource()
+            defer { if didScope { url.stopAccessingSecurityScopedResource() } }
+            if let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > maxBytes {
+                return (nil, size)
+            }
+            return (try? Data(contentsOf: url), nil)
+        }.value
+
+        if let oversize = outcome.oversize {
+            auditError = "“\(url.lastPathComponent)” is too large to be a password export (\(Self.sizeString(oversize))) — skipped."
             return
         }
-        guard let data = try? Data(contentsOf: url) else {
+        guard let data = outcome.data else {
             auditError = "Couldn't read “\(url.lastPathComponent)” — the file may have moved or be unreadable."
             return
         }
@@ -811,16 +822,20 @@ public final class AppModel {
     /// data, then unlink. A plaintext password CSV in ~/Downloads is the single
     /// biggest real-world risk, so this is a first-class step.
     @discardableResult
-    public func securelyDeleteSource(of file: ImportedFile) -> Bool {
+    public func securelyDeleteSource(of file: ImportedFile) async -> Bool {
         guard let url = file.url else { return false }
-        let ok = Self.secureDelete(url)
+        // The overwrite + fsync can take a while on a large file — run it off the
+        // main actor so the UI doesn't freeze during the wipe.
+        let ok = await Task.detached { Self.secureDelete(url) }.value
         if ok, let i = files.firstIndex(where: { $0.id == file.id }) {
             files[i].sourceDeleted = true
         }
         return ok
     }
 
-    static func secureDelete(_ url: URL) -> Bool {
+    // nonisolated: pure file I/O touching no actor state, so it can run off the
+    // main actor (the overwrite + fsync would otherwise freeze the UI).
+    nonisolated static func secureDelete(_ url: URL) -> Bool {
         let fm = FileManager.default
         let size = ((try? fm.attributesOfItem(atPath: url.path))?[.size] as? Int) ?? 0
 
@@ -876,11 +891,13 @@ public final class AppModel {
         watchStart = Date()
         seenSignatures = []
         autoImportMessage = nil
-        folderWatcher.onChange = { [weak self] in self?.scanWatchedFolder() }
+        folderWatcher.onChange = { [weak self] in
+            self?.scanTask = Task { [weak self] in await self?.scanWatchedFolder() }
+        }
         folderWatcher.start(url: url)
         saveBookmark(url)
         UserDefaults.standard.set(url.path, forKey: watchPathKey)   // remembered for one-click re-watch
-        scanWatchedFolder()   // catch an export that just finished
+        scanTask = Task { [weak self] in await self?.scanWatchedFolder() }   // catch an export that just finished
     }
 
     public func stopWatching() {
@@ -902,34 +919,43 @@ public final class AppModel {
         }
     }
 
-    private func scanWatchedFolder() {
+    private func scanWatchedFolder() async {
         guard let dir = watchedFolder else { return }
         // Reentrancy guard: the vnode source and the poll timer can both fire
-        // onChange. The scan is synchronous on the main actor today (so it can't
-        // truly re-enter), but guard anyway so a future async import path can't
-        // double-process the same export.
+        // onChange. The scan now `await`s off-main-actor reads, so it can genuinely
+        // overlap — but `isScanning` is set synchronously before the first await
+        // and cleared in `defer`, so a re-entrant scan returns immediately and the
+        // same export isn't double-processed.
         guard !isScanning else { return }
         isScanning = true
         defer { isScanning = false }
         let threshold = watchStart.addingTimeInterval(-importGraceSeconds)
         for entry in FolderScan.freshCSVs(in: dir, since: threshold, seen: seenSignatures) {
             seenSignatures.insert(entry.signature)
-            autoImport(entry.url)
+            await autoImport(entry.url)
         }
     }
 
-    private func autoImport(_ url: URL) {
+    private func autoImport(_ url: URL) async {
         // Skip anything already imported, and anything that isn't a recognized
         // password export (so a random CSV in the folder is left alone).
         if files.contains(where: { $0.url?.path == url.path }) { return }
-        // Cap before reading: never slurp an untrusted multi-GB file into memory.
-        // Unlike a non-password CSV (silently ignored below), an over-cap file is
-        // surfaced — it's a likely-wrong file the user dropped in the watched folder.
-        if let size = importByteSize(of: url), size > Self.maxImportBytes {
-            autoImportMessage = "Skipped \(url.lastPathComponent): too large (\(Self.sizeString(size))) to be a password export."
+        // Cap + read off the main actor: never slurp an untrusted multi-GB file
+        // into memory, and don't block the UI on the read. Unlike a non-password
+        // CSV (silently ignored below), an over-cap file is surfaced — it's a
+        // likely-wrong file the user dropped in the watched folder.
+        let maxBytes = Self.maxImportBytes
+        let outcome: (data: Data?, oversize: Int?) = await Task.detached {
+            if let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > maxBytes {
+                return (nil, size)
+            }
+            return (try? Data(contentsOf: url), nil)
+        }.value
+        if let oversize = outcome.oversize {
+            autoImportMessage = "Skipped \(url.lastPathComponent): too large (\(Self.sizeString(oversize))) to be a password export."
             return
         }
-        guard let data = try? Data(contentsOf: url),
+        guard let data = outcome.data,
               let table = try? CSVParser.parse(data),
               FormatDetector.detect(headers: table.headers) != .unknown else { return }
         // No import-time picker on this path, so infer the specific Chromium

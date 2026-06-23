@@ -60,7 +60,7 @@ struct FolderWatcherTests {
 @Suite("Auto-import gating")
 struct AutoImportTests {
     @Test("Starting a watch imports a recognized export and ignores a non-password CSV")
-    func gatesOnRecognizedFormat() throws {
+    func gatesOnRecognizedFormat() async throws {
         let dir = tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
@@ -70,10 +70,11 @@ struct AutoImportTests {
             .write(to: dir.appendingPathComponent("spreadsheet.csv"))
 
         let model = AppModel()
-        // startWatching scans existing fresh CSVs synchronously, so this is
-        // deterministic without waiting on filesystem events.
+        // startWatching kicks off a scan of existing fresh CSVs; the scan now reads
+        // off the main actor, so await it for determinism (no filesystem events).
         model.startWatching(dir)
         defer { model.stopWatching() }
+        await model.awaitScanForTesting()
 
         #expect(model.watchedFolder == dir)
         #expect(model.allCredentials.count == 1)

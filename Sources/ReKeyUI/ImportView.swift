@@ -61,9 +61,10 @@ struct ImportView: View {
         ) { result in
             switch result {
             case .success(let urls):
-                for url in urls { model.importFile(at: url) }
-                model.reconcileDeletionMarks()   // once, after the whole batch is in
-
+                Task {
+                    for url in urls { await model.importFile(at: url) }
+                    model.reconcileDeletionMarks()   // once, after the whole batch is in
+                }
             case .failure(let error):
                 model.reportImportError("Couldn't open that file: \(error.localizedDescription)")
             }
@@ -210,7 +211,7 @@ struct ImportView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                             Spacer()
                             Button(role: .destructive) {
-                                model.securelyDeleteSource(of: file)
+                                Task { await model.securelyDeleteSource(of: file) }
                             } label: {
                                 Label("Securely delete", systemImage: "trash")
                             }

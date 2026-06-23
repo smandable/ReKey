@@ -52,6 +52,9 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
   discovery. [cli]
 
 ### Fixed
+- **Importing or securely deleting a large file no longer freezes the window.** The
+  file read and the secure-overwrite-and-delete now run off the main thread, so the
+  UI stays responsive. [auditor]
 - **A huge file dropped in the watched folder (or picked) is no longer read into
   memory.** Imports over a generous size cap are skipped with a clear message instead
   of risking an out-of-memory hang on a file far too large to be a password export. [auditor]
