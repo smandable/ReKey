@@ -24,12 +24,16 @@ enum FixVerificationKey {
     }
 
     private static func baseQuery() -> [String: Any] {
+        // Legacy (login-keychain) query — no kSecUseDataProtectionKeychain. The
+        // data-protection keychain needs a provisioning-injected
+        // application-identifier, which the Developer ID .dmg and ad-hoc dev builds
+        // don't carry; the legacy keychain works for a sandboxed app's OWN items
+        // across all three build channels. If it's still unavailable, loadOrCreate
+        // returns nil and save-verification is skipped (never an unkeyed hash).
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            // iOS-style keychain semantics that behave correctly in the app sandbox.
-            kSecUseDataProtectionKeychain as String: true,
         ]
     }
 
