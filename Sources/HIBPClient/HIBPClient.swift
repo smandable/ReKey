@@ -32,14 +32,27 @@ public actor HIBPClient {
     private var rangeCache: [String: [String: Int]] = [:]
 
     public init(
-        session: URLSession = .shared,
+        session: URLSession? = nil,
         maxConcurrentRequests: Int = 4,
         maxRetries: Int = 2
     ) {
-        self.session = session
+        // Default to an ephemeral, cache-less session (NOT URLSession.shared): a
+        // range request's URL carries the first 5 hex of the password's SHA-1, and
+        // the shared session's on-disk URLCache would persist those password-derived
+        // prefixes (and responses) to disk. Tests inject their own mock session.
+        self.session = session ?? HIBPClient.makeEphemeralSession()
         self.maxConcurrentRequests = max(1, maxConcurrentRequests)
         self.maxRetries = max(0, maxRetries)
         self.requestTimeout = 10
+    }
+
+    /// A private, ephemeral URLSession with caching fully disabled, so no
+    /// password-derived hash prefix is ever written to disk.
+    private static func makeEphemeralSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        return URLSession(configuration: config)
     }
 
     /// Check a batch of secrets keyed by credential id.

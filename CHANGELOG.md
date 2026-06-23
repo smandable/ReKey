@@ -16,6 +16,9 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 ## [Unreleased] — 1.1.0
 
 ### Security
+- **Breach-check requests are never cached to disk.** The Have I Been Pwned check now
+  uses a private, cache-less session, so the password-derived hash prefix in each
+  request can't be written to the on-disk URL cache. [auditor]
 - **Plaintext passwords are scrubbed from memory when no longer referenced.** The
   in-memory password wrapper now zeroes its buffer as soon as the last copy is
   released, instead of leaving cleartext lingering in memory for the whole session.
