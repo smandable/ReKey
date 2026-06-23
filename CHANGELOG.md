@@ -13,6 +13,15 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
+## [Unreleased]
+
+### Changed
+- **The "may not have saved" warning no longer looks like a password-health finding.**
+  It used to share the orange/red of the finding badges, so a possibly-failed fix
+  blended in with "reused/compromised" flags. The per-account marker is now a quiet
+  label paired with a prominent **Reopen** button (the action stands out), and the
+  top banner uses the accent color — red stays reserved for Compromised. [auditor]
+
 ## [1.1.0] — 2026-06-23
 
 ### Security

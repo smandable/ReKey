@@ -123,13 +123,17 @@ struct FindingsView: View {
     private var unsavedFixBanner: some View {
         let n = model.unsavedFixCount
         if n > 0 {
-            Label("\(n) fixed account\(n == 1 ? "" : "s") may not have saved — your latest import still shows the old password. Look for the orange “May not have saved” flag below and Reopen to redo it.",
-                  systemImage: "exclamationmark.triangle.fill")
-                .font(.callout).foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color.accentColor)
+                Text("\(n) fixed account\(n == 1 ? "" : "s") may not have saved — your latest import still shows the old password. Reopen the flagged account\(n == 1 ? "" : "s") below to redo.")
+                    .foregroundStyle(.primary)
+            }
+            .font(.callout)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 
@@ -446,23 +450,39 @@ private struct CredentialRow: View {
     @ViewBuilder
     private var fixControl: some View {
         if model.isFixed(cred) {
+            let mayFail = model.fixMaySaveFailed(cred)
             HStack(spacing: 8) {
-                if model.fixMaySaveFailed(cred) {
+                if mayFail {
+                    // Muted label + a PROMINENT Reopen button: the action stands out
+                    // (a filled button is a different idiom than a severity pill), so
+                    // this doesn't collide with the red Compromised badge on the row.
                     Label("May not have saved", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2.weight(.medium)).foregroundStyle(.orange)
+                        .font(.caption2.weight(.medium)).foregroundStyle(.secondary)
                         .help("Your latest import still shows the OLD password for this account — the change may not have saved to the browser. Reopen to redo it.")
                 } else {
                     Label("Fixed", systemImage: "checkmark.circle.fill")
                         .font(.caption2.weight(.medium)).foregroundStyle(.green)
                 }
-                Button("Reopen") { model.unmarkFixed(for: cred) }
-                    .controlSize(.small)
-                    .help("Not actually fixed? Mark it un-fixed so you can queue and redo it — e.g. the new password never got saved to the browser.")
+                reopenButton(prominent: mayFail)
             }
         } else if model.fixQueue.items.contains(where: { $0.credentialID == cred.id }) {
             Label("In fix queue", systemImage: "checkmark").font(.caption2).foregroundStyle(.green)
         } else {
             Button("Add to queue") { Task { await model.enqueueFix(for: cred) } }.controlSize(.small)
+        }
+    }
+
+    /// The Reopen button — prominent (filled) when a fix may not have saved, so the
+    /// action is the row's focal point; plain otherwise.
+    @ViewBuilder
+    private func reopenButton(prominent: Bool) -> some View {
+        let button = Button("Reopen") { model.unmarkFixed(for: cred) }
+            .controlSize(.small)
+            .help("Not actually fixed? Mark it un-fixed so you can queue and redo it — e.g. the new password never got saved to the browser.")
+        if prominent {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button
         }
     }
 }
