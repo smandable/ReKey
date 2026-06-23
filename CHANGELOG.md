@@ -13,6 +13,13 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
+## [Unreleased]
+
+### Changed
+- Build/packaging scripts now run the packaged app's `--selftest` and fail the
+  build if a bundled resource (Public Suffix List, EFF wordlist, reset-router
+  fallback map) doesn't load — so a resource-drop regression can't ship silently. [internal]
+
 ## [1.1.1] — 2026-06-23
 
 ### Changed
