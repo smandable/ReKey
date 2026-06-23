@@ -163,4 +163,13 @@ struct CleanupCommandTests {
     func unknownCommand() {
         #expect(runCLI(["frobnicate", "--browser", "chrome"]) == 1)
     }
+
+    @Test("Ownership check distinguishes our files from foreign ones")
+    func ownershipCheck() {
+        let store = Store.make([.init(origin: "https://x.com/a", username: "u")])
+        #expect(CleanupCommand.ownedByCurrentUser(store))           // a file we created
+        if getuid() != 0 {                                         // skip if running as root
+            #expect(!CleanupCommand.ownedByCurrentUser(URL(fileURLWithPath: "/usr/bin/true")))
+        }
+    }
 }

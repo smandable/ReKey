@@ -194,7 +194,13 @@ public enum CleanupCommand {
                     return 0
                 }
 
-                // Real delete: guardrails.
+                // Real delete: guardrails. Ownership first (refuse a foreign file),
+                // then the running-browser check as late as possible before the write
+                // to keep the TOCTOU window minimal.
+                guard Self.ownedByCurrentUser(storeURL) else {
+                    err("\nRefusing to modify \(storeURL.path): it isn't owned by your user account.")
+                    return 1
+                }
                 if runningChecker.isRunning(browser) {
                     err("\n\(browser.displayName) is running. Quit it completely, then re-run with --confirm.")
                     return 2
@@ -273,6 +279,10 @@ public enum CleanupCommand {
                     out("\nDRY RUN: would delete \(matched.count) login(s) across \(sitesTouched.count) site(s)\(cleanNote). Re-run with --confirm.")
                     return 0
                 }
+                guard Self.ownedByCurrentUser(storeURL) else {
+                    err("\nRefusing to modify \(storeURL.path): it isn't owned by your user account.")
+                    return 1
+                }
                 if runningChecker.isRunning(browser) {
                     err("\n\(browser.displayName) is running. Quit it completely, then re-run with --confirm.")
                     return 2
@@ -327,6 +337,15 @@ public enum CleanupCommand {
     }
 
     // MARK: - Output helpers
+
+    /// Whether the store file is owned by the current user. A misdirected --path
+    /// could otherwise have rekey-cleanup rewrite another user's (or a system) file
+    /// the process merely has write permission to — so refuse anything we don't own.
+    static func ownedByCurrentUser(_ url: URL) -> Bool {
+        guard let owner = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.ownerAccountID] as? NSNumber
+        else { return false }
+        return owner.uintValue == UInt(getuid())
+    }
 
     /// Host of a stored login's origin URL, for the over-match (multi-site) warning.
     static func host(ofOrigin origin: String) -> String {
