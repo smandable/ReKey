@@ -85,6 +85,36 @@ struct FirefoxLoginStoreTests {
         #expect((logins.first?["guid"] as? String) == "")   // the guid-less one remains
     }
 
+    @Test("A duplicate non-empty guid doesn't collaterally delete a non-matching sibling")
+    func duplicateGuidNoCollateral() throws {
+        let dir = TestStores.tempDir()
+        let url = dir.appendingPathComponent("logins.json")
+        // A corrupt store: two entries share guid "{dup}" — one on github (matches
+        // --site github), one on example.com (does NOT).
+        TestStores.makeFirefox(at: url, logins: [
+            TestStores.firefoxLogin(guid: "{dup}", host: "https://github.com"),
+            TestStores.firefoxLogin(guid: "{dup}", host: "https://example.com"),
+        ])
+        let store = FirefoxLoginStore(loginsURL: url)
+
+        let outcome = try store.delete(matching: LoginFilter(site: "github"),
+                                       backupDirectory: dir.appendingPathComponent("b"))
+        #expect(outcome.deletedCount == 1)                        // only the matching entry
+        let logins = TestStores.readFirefoxRoot(url)["logins"] as? [[String: Any]] ?? []
+        #expect(logins.count == 1)
+        #expect((logins.first?["hostname"] as? String) == "https://example.com")  // sibling survives
+    }
+
+    @Test("Validate rejects a JSON with version+logins that isn't a Firefox store (no nextId)")
+    func validateRejectsNonFirefoxJSON() throws {
+        let dir = TestStores.tempDir()
+        let url = dir.appendingPathComponent("notes.json")
+        try Data(#"{"version":3,"logins":[]}"#.utf8).write(to: url)
+        #expect(throws: LoginStoreError.self) {
+            try FirefoxLoginStore(loginsURL: url).validate()
+        }
+    }
+
     @Test("Version 2 is accepted: validate/list/delete all work")
     func version2() throws {
         let (store, dir) = makeStore(version: 2)

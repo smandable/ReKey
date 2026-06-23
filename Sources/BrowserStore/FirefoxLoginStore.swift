@@ -39,16 +39,18 @@ public struct FirefoxLoginStore: LoginStore {
         // guid-less entry when one is matched by site.
         let deletable = loginsArray.map(makeStoredLogin).filter(filter.matches).filter { !$0.id.isEmpty }
         guard !deletable.isEmpty else { return DeleteOutcome(deleted: [], backupPath: backupDirectory) }
-        let deleteGuids = Set(deletable.map(\.id))
 
         // Back up BEFORE writing.
         try StoreBackup.copy(files: [loginsURL], into: backupDirectory)
 
-        // Remove only the matched entries; keep every other key/field intact, and
-        // never drop a guid-less entry (it isn't in deleteGuids by construction).
+        // Remove exactly the entries that THEMSELVES match (and carry a real guid) —
+        // judged per entry, NOT by guid-set membership. A corrupt store with a
+        // duplicate non-empty guid would otherwise collaterally delete a
+        // non-matching sibling that merely shares that guid. Guid-less entries are
+        // never deletable, so they're always kept.
         let remaining = loginsArray.filter { entry in
-            let guid = entry["guid"] as? String ?? ""
-            return guid.isEmpty || !deleteGuids.contains(guid)
+            let login = makeStoredLogin(entry)
+            return login.id.isEmpty || !filter.matches(login)
         }
         root["logins"] = remaining
 
@@ -88,6 +90,12 @@ public struct FirefoxLoginStore: LoginStore {
         }
         guard root["logins"] is [Any] else {
             throw LoginStoreError.unrecognizedSchema("logins.json has no 'logins' array")
+        }
+        // `nextId` is a core Firefox logins.json field. Requiring it keeps a
+        // misdirected --path from rewriting some *other* JSON file that merely
+        // happens to have a `version` + `logins` array.
+        guard root["nextId"] != nil else {
+            throw LoginStoreError.unrecognizedSchema("logins.json is missing 'nextId' — doesn't look like a Firefox login store")
         }
         return root
     }
