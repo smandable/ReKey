@@ -52,6 +52,10 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
   discovery. [cli]
 
 ### Fixed
+- **A background auto-import during an audit can't corrupt the results.** An audit
+  now discards its result if the imported credentials changed while it was running
+  (and a new import or re-run cancels the in-flight HIBP check instead of leaving it
+  to overwrite the current view). [auditor]
 - **An incomplete breach check no longer reads as a clean result.** If Have I Been
   Pwned can't be reached for some passwords (offline or the service didn't respond),
   Findings now shows how many couldn't be checked rather than silently treating them

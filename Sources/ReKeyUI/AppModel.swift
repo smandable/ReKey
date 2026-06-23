@@ -99,6 +99,18 @@ public final class AppModel {
     public var isAuditing = false
     public var auditError: String?
 
+    /// Bumped whenever `allCredentials` changes (import / remove / relabel). An
+    /// audit captures this at the start and refuses to write its result if it
+    /// changed meanwhile — so a long HIBP run can't clobber a report that a
+    /// concurrent auto-import already invalidated.
+    @ObservationIgnored private var importGeneration = 0
+    /// The in-flight audit, retained so a new import or re-trigger can cancel it
+    /// (stops a pointless HIBP run) instead of leaking an orphan task.
+    @ObservationIgnored private var auditTask: Task<Void, Never>?
+    /// Bumped on each `startAudit()`; only the latest-epoch run owns `report` and
+    /// the `isAuditing` flag, so re-triggering doesn't race two audits.
+    @ObservationIgnored private var auditEpoch = 0
+
     /// Live progress of the running audit (nil when not auditing). Private so the
     /// AuditEngine type doesn't leak into the views — they read the derived
     /// `auditStatusText` / `auditFraction` instead.
@@ -371,6 +383,14 @@ public final class AppModel {
     private let importer = CSVImporter()
     private let hibp = HIBPClient()
 
+    /// Test seam: when set, audits use this checker instead of the real HIBP
+    /// client, so a test can gate the compromised-check to exercise the
+    /// import-during-audit race deterministically. Production leaves it nil.
+    static var compromiseCheckerOverride: (any CompromiseChecking)?
+
+    /// Await the in-flight audit's completion — for tests driving the audit race.
+    func awaitAuditForTesting() async { await auditTask?.value }
+
     public init() {
         // Resolve the save-verification HMAC key once (Keychain, or a test
         // override). Done before any save record is written or verified.
@@ -615,6 +635,7 @@ public final class AppModel {
         }
         allCredentials = deduped
         credentialIndex = Dictionary(allCredentials.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        importGeneration &+= 1   // invalidates any in-flight audit's pending write
     }
 
     /// After importing `source`, re-check that source's fixed accounts against the
@@ -674,8 +695,8 @@ public final class AppModel {
             files.append(ImportedFile(url: url, displayName: displayName, result: result))
             reindexCredentials()
             verifyFixes(against: result.source)
-            // A fresh import invalidates the previous audit.
-            report = nil
+            // A fresh import invalidates the previous audit (and cancels one running).
+            invalidateAudit()
             auditError = nil                 // a good import clears any prior error
         } catch {
             auditError = "Couldn't import “\(displayName)”: \(error.localizedDescription). Make sure it's an unmodified password CSV exported from a browser or Apple Passwords."
@@ -685,7 +706,7 @@ public final class AppModel {
     public func removeFile(_ file: ImportedFile) {
         files.removeAll { $0.id == file.id }
         reindexCredentials()
-        report = nil
+        invalidateAudit()
     }
 
     /// Correct a mislabeled Chromium import in place. Chrome/Arc/Brave/Edge/Opera/
@@ -734,7 +755,7 @@ public final class AppModel {
         saveProgress()
         // Credential ids fold in source, so the prior audit's keys no longer
         // resolve — invalidate it, same as a fresh import. The user re-audits.
-        report = nil
+        invalidateAudit()
         auditError = nil
     }
 
@@ -899,15 +920,40 @@ public final class AppModel {
 
     // MARK: - Audit
 
+    /// Start (or restart) the audit. Cancels any in-flight run first, so
+    /// re-triggering never races two audits both writing `report`. The UI calls
+    /// this instead of awaiting `runAudit` directly.
+    public func startAudit() {
+        auditTask?.cancel()
+        auditEpoch &+= 1
+        let epoch = auditEpoch
+        auditTask = Task { @MainActor [weak self] in await self?.runAudit(epoch: epoch) }
+    }
+
+    /// Cancel any in-flight audit and clear the shown report — credentials changed
+    /// (import / remove / relabel), so a running HIBP check is now stale and the
+    /// shown report no longer matches.
+    private func invalidateAudit() {
+        // Cancel but keep the handle: the cancelled run still finishes (cooperative
+        // cancellation), and its generation/epoch guard discards the stale write.
+        auditTask?.cancel()
+        report = nil
+    }
+
     /// Run reuse/duplicate analysis and the HIBP compromised check. This is the
     /// only credential-touching network call (k-anonymity: only 5-char SHA-1
-    /// prefixes leave the device).
-    public func runAudit() async {
+    /// prefixes leave the device). Only the latest-epoch run writes its result.
+    private func runAudit(epoch: Int) async {
         guard !allCredentials.isEmpty else { return }
+        // Snapshot the inputs' generation: if a concurrent import bumps it before
+        // we finish, the result is stale and must not overwrite the new state.
+        let generation = importGeneration
         isAuditing = true
         auditError = nil
         auditProgress = nil
-        defer { isAuditing = false; auditProgress = nil }
+        // Only the live run clears the flags — a superseded re-trigger must not
+        // flip `isAuditing` off while the newer audit is still going.
+        defer { if epoch == auditEpoch { isAuditing = false; auditProgress = nil } }
 
         // Progress arrives from background threads (the HIBP actor and the
         // coordinator). Funnel it through an AsyncStream so updates land on the
@@ -921,13 +967,16 @@ public final class AppModel {
             for await progress in stream { self.auditProgress = progress }
         }
 
-        let coordinator = AuditCoordinator(compromiseChecker: hibp)
+        let coordinator = AuditCoordinator(compromiseChecker: Self.compromiseCheckerOverride ?? hibp)
         let report = await coordinator.audit(credentials: allCredentials) { progress in
             continuation.yield(progress)
         }
         continuation.finish()
         await consumer.value
 
+        // Discard a stale or superseded result: a concurrent import changed the
+        // credentials, this run was cancelled, or a newer audit started.
+        guard !Task.isCancelled, epoch == auditEpoch, generation == importGeneration else { return }
         self.report = report
         self.section = .findings
     }

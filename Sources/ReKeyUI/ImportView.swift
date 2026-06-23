@@ -284,7 +284,7 @@ struct ImportView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    Task { await model.runAudit() }
+                    model.startAudit()
                 } label: {
                     Label(model.isAuditing ? "Auditing…" : "Run audit", systemImage: "magnifyingglass")
                 }
