@@ -48,6 +48,7 @@ struct FindingsView: View {
             // what's on screen.
             LazyVStack(alignment: .leading, spacing: 12) {
                 summary(report)
+                breachCheckBanner(report)
                 unsavedFixBanner
                 searchBar
 
@@ -97,6 +98,22 @@ struct FindingsView: View {
                 description: Text(onlyIssues ? "None of your imported passwords are reused, breached, or weak." : "Import some credentials first.")
             )
             .frame(maxWidth: .infinity).padding(.top, 40)
+        }
+    }
+
+    /// Heads-up when the breach check couldn't reach Have I Been Pwned for some
+    /// passwords — so an incomplete run doesn't read as a clean bill of health.
+    @ViewBuilder
+    private func breachCheckBanner(_ report: AuditReport) -> some View {
+        let n = report.breachCheckUnknown.count
+        if n > 0 {
+            Label("Couldn't check \(n) password\(n == 1 ? "" : "s") against Have I Been Pwned (offline or the service didn't respond). Those aren't confirmed safe — re-run the audit when you're back online.",
+                  systemImage: "wifi.exclamationmark")
+                .font(.callout).foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 

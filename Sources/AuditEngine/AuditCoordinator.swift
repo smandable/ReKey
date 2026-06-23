@@ -93,6 +93,15 @@ public struct AuditReport: Sendable {
         domainGroups.filter(\.hasFinding)
     }
 
+    /// Credentials whose breach status couldn't be determined — HIBP was offline
+    /// or errored after retries (or wasn't checked). A non-empty set means the run
+    /// is INCOMPLETE: the absence of a compromised finding for these is "unknown",
+    /// not a clean bill of health, so the UI surfaces it rather than implying all
+    /// clear.
+    public var breachCheckUnknown: Set<UUID> {
+        Set(credentials.map(\.id).filter { (compromised[$0] ?? .unknown) == .unknown })
+    }
+
     /// Domain groups sorted **worst-first**: highest severity, then biggest reuse
     /// cluster, then important domains, then alphabetical. For the priority view.
     public var prioritizedDomainGroups: [DomainGroup] {

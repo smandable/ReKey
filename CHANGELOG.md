@@ -48,6 +48,10 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
   discovery. [cli]
 
 ### Fixed
+- **An incomplete breach check no longer reads as a clean result.** If Have I Been
+  Pwned can't be reached for some passwords (offline or the service didn't respond),
+  Findings now shows how many couldn't be checked rather than silently treating them
+  as safe — re-run when back online to confirm. [auditor]
 - **Strong passwords using non-Latin scripts or emoji are no longer mislabeled "Weak."**
   The weak-password check judged length by character count, so a short-looking but
   high-entropy password (e.g. CJK or emoji) read as weak; it now weights non-ASCII

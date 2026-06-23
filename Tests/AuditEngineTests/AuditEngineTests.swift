@@ -287,5 +287,14 @@ struct AuditEngineTests {
         // No compromised findings, but reuse findings still present.
         #expect(r.findingsByCredential.values.allSatisfy { $0.kind != .compromised && $0.kind != .compromisedAndReused })
         #expect(r.reusedAcrossSites.count == 9)
+        // And the run is reported as INCOMPLETE — every credential is unknown, so
+        // "no compromised finding" mustn't read as a clean bill of health.
+        #expect(r.breachCheckUnknown == Set(creds.map(\.id)))
+    }
+
+    @Test("A fully-checked run reports no unknown breach statuses")
+    func noUnknownWhenChecked() async throws {
+        let r = try await report()   // StubChecker returns a definitive status for every entry
+        #expect(r.breachCheckUnknown.isEmpty)
     }
 }
