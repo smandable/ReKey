@@ -128,7 +128,9 @@ public struct CSVImporter: Sendable {
             let otp = field(row, columns.otpauth)
             let hasTOTP = !(otp ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-            let registrableDomain = canonicalizer.registrableDomain(fromRawURL: rawURL) ?? rawURL
+            // Sanitized fallback (not the verbatim raw URL) when no host parses, so
+            // a malformed URL can't pollute grouping/cleanup targeting.
+            let registrableDomain = canonicalizer.groupingDomain(fromRawURL: rawURL)
             let host = canonicalizer.host(fromRawURL: rawURL) ?? ""
             let secret = Secret(password)
             // Stable across re-imports of the same login (see deterministicID).

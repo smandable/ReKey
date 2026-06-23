@@ -55,6 +55,17 @@ struct PublicSuffixListTests {
 struct URLCanonicalizerTests {
     let canon = URLCanonicalizer()
 
+    @Test("Unparseable URLs fall back to a sanitized token, not the verbatim raw string")
+    func malformedURLFallback() {
+        // Whitespace + control characters are stripped; other characters lowercased.
+        #expect(URLCanonicalizer.sanitizedFallback("Weird URL\n\t!") == "weirdurl!")
+        #expect(URLCanonicalizer.sanitizedFallback("   ") == "unknown")          // nothing usable
+        #expect(URLCanonicalizer.sanitizedFallback(String(repeating: "x", count: 500)).count == 200)  // capped
+        // Normal URLs still resolve to eTLD+1 through the never-nil entry point.
+        #expect(canon.groupingDomain(fromRawURL: "https://accounts.google.com/") == "google.com")
+        #expect(canon.groupingDomain(fromRawURL: "https://www.reddit.com/") == "reddit.com")
+    }
+
     @Test("IPv4 hosts are returned verbatim, not collapsed via the PSL")
     func ipv4() {
         #expect(canon.registrableDomain(fromRawURL: "https://192.168.1.1/login") == "192.168.1.1")

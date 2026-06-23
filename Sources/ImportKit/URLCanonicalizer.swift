@@ -61,6 +61,31 @@ public struct URLCanonicalizer: Sendable {
         return psl.registrableDomain(of: host) ?? host
     }
 
+    /// The grouping/targeting domain for a raw URL: the registrable domain, or —
+    /// when no host can be parsed (a malformed URL) — a *sanitized* form of the
+    /// input rather than the verbatim raw string. Returning the raw string would
+    /// let whitespace, control characters, or an arbitrarily long URL pollute
+    /// domain grouping and feed odd values into cleanup targeting. Never nil, so a
+    /// credential is always groupable.
+    public func groupingDomain(fromRawURL raw: String) -> String {
+        registrableDomain(fromRawURL: raw) ?? Self.sanitizedFallback(raw)
+    }
+
+    /// A clean grouping token from an unparseable URL: lowercased, with whitespace
+    /// and control characters removed and capped to a domain-ish length. Distinct
+    /// malformed URLs stay reasonably distinct without carrying junk into the key.
+    static func sanitizedFallback(_ raw: String) -> String {
+        var view = String.UnicodeScalarView()
+        for scalar in raw.lowercased().unicodeScalars
+        where !CharacterSet.whitespacesAndNewlines.contains(scalar)
+            && !CharacterSet.controlCharacters.contains(scalar) {
+            view.append(scalar)
+        }
+        let cleaned = String(view)
+        guard !cleaned.isEmpty else { return "unknown" }
+        return cleaned.count > 200 ? String(cleaned.prefix(200)) : cleaned
+    }
+
     /// True for an IPv4 literal (four all-digit dot labels) or an IPv6 literal
     /// (contains a colon).
     static func isIPLiteral(_ host: String) -> Bool {
