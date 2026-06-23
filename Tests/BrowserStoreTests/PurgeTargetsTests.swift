@@ -62,4 +62,15 @@ struct PurgeTargetsTests {
         #expect(PurgeTargets.originBelongsToSite("https://WWW.Example.COM/", site: "example.com"))
         #expect(!PurgeTargets.originBelongsToSite("https://other.com/", site: "example.com"))
     }
+
+    @Test("An origin with no parseable URL host falls back to a verbatim comparison")
+    func parseFailureFallback() {
+        // No scheme → URLComponents finds no host, so the raw origin is the "host".
+        #expect(PurgeTargets.originBelongsToSite("casino.com", site: "casino.com"))
+        #expect(PurgeTargets.originBelongsToSite("sub.casino.com", site: "casino.com"))   // suffix on raw
+        #expect(!PurgeTargets.originBelongsToSite("nodepositcasino.com", site: "casino.com"))
+        // A wholly unparseable string only ever matches itself.
+        #expect(PurgeTargets.originBelongsToSite("¬not a url", site: "¬not a url"))
+        #expect(!PurgeTargets.originBelongsToSite("¬not a url", site: "casino.com"))
+    }
 }

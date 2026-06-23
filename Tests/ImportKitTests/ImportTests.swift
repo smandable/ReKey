@@ -34,6 +34,24 @@ struct ImportTests {
         result.credentials.first { $0.registrableDomain == domain && $0.username == username }
     }
 
+    @Test("Fuzzy column mapping: alias headers, URL-fallback username, and safe no-password failure")
+    func fuzzyColumnMapping() {
+        // Alias headers resolve; a missing username column falls back to the URL
+        // column (a known wart — locked here so any change is intentional).
+        let m = importer.resolveColumns(format: .unknown, headers: ["website", "pwd"])
+        #expect(m?.url == 0)
+        #expect(m?.password == 1)
+        #expect(m?.username == 0)        // url-fallback username
+
+        let m2 = importer.resolveColumns(format: .unknown, headers: ["url", "login", "password", "notes"])
+        #expect(m2?.username == 1)       // "login" alias, not the url fallback
+        #expect(m2?.notes == 3)
+
+        // No password-like column → no map (import fails rather than mis-mapping
+        // some other column, e.g. notes, into the password slot).
+        #expect(importer.resolveColumns(format: .unknown, headers: ["url", "username", "comment"]) == nil)
+    }
+
     @Test("Chrome: 4 credentials, 1 skipped (blank-password federated row)")
     func chrome() throws {
         let r = try importer.import(data: Fixtures.data("chrome.csv"))

@@ -32,6 +32,27 @@ struct HIBPClientTests {
     }
 
     @Test
+    func parseRangeHandlesAdversarialBodies() {
+        func parse(_ s: String) -> [String: Int] { HIBPClient.parseRange(Data(s.utf8)) }
+        // Empty / non-UTF8 / no valid lines.
+        #expect(HIBPClient.parseRange(Data()).isEmpty)
+        #expect(HIBPClient.parseRange(Data([0xFF, 0xFE, 0xFF])).isEmpty)   // invalid UTF-8
+        #expect(parse("\n\n  \n").isEmpty)
+        #expect(parse("garbage-without-colon").isEmpty)
+        // Non-numeric / zero (padding) / negative counts are dropped.
+        #expect(parse("ABCDE:notanumber").isEmpty)
+        #expect(parse("ABCDE:0").isEmpty)
+        #expect(parse("ABCDE:-5").isEmpty)
+        // Extra colons → the count slice isn't an Int → skipped.
+        #expect(parse("ABCDE:1:2").isEmpty)
+        // Valid lines parse; suffix uppercased; surrounding whitespace tolerated.
+        #expect(parse("abcde:7") == ["ABCDE": 7])
+        #expect(parse("ABCDE: 42 ") == ["ABCDE": 42])
+        // Mixed garbage + valid: only the valid lines survive; CRLF handled.
+        #expect(parse("bad\r\nGOOD1:3\nzero:0\nGOOD2:9") == ["GOOD1": 3, "GOOD2": 9])
+    }
+
+    @Test
     func knownPasswordIsCompromised() async {
         MockURLProtocol.reset()
         installDefaultHandler()
