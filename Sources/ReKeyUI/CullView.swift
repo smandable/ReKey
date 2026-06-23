@@ -18,6 +18,7 @@ struct CullView: View {
     @State private var copied = false
     @State private var copyGen = 0   // invalidates a pending "Copied" reset when a newer copy/toggle happens
     @State private var showScript = false
+    @State private var saveError: String?   // surfaced in an alert so a failed save isn't silent
 
     /// Only browsers `rekey-cleanup` can actually delete from (Chromium + Firefox)
     /// — Apple Passwords has no delete API, so its logins aren't cullable here.
@@ -74,6 +75,11 @@ struct CullView: View {
             .frame(maxWidth: 820, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
+        .alert("Couldn't save the script",
+               isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } }),
+               presenting: saveError) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { Text($0) }
     }
 
     private var header: some View {
@@ -295,7 +301,11 @@ struct CullView: View {
         panel.canCreateDirectories = true
         panel.message = "Save the deletion script. Review it, then run it in Terminal."
         if panel.runModal() == .OK, let url = panel.url {
-            try? script.write(to: url, atomically: true, encoding: .utf8)
+            do {
+                try script.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                saveError = "Couldn't write \(url.lastPathComponent): \(error.localizedDescription)"
+            }
         }
     }
 
@@ -312,9 +322,21 @@ struct CullView: View {
         panel.allowsMultipleSelection = false
         panel.message = "Choose a rekey-cleanup.sh to append these purge commands to."
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        // Read the existing file explicitly: a failed read must NOT fall back to ""
+        // (which would clobber the file the user meant to append to).
+        let existing: String
+        do {
+            existing = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            saveError = "Couldn't read \(url.lastPathComponent) to append to it: \(error.localizedDescription)"
+            return
+        }
         guard let out = model.deletionScriptAppending(to: existing, confirm: confirm, forceManual: forceManual) else { return }
-        try? out.write(to: url, atomically: true, encoding: .utf8)
+        do {
+            try out.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            saveError = "Couldn't update \(url.lastPathComponent): \(error.localizedDescription)"
+        }
     }
 
 }
