@@ -17,6 +17,7 @@ public enum ReKeySelfTest {
 
         // Public Suffix List (ImportKit resource).
         let psl = PublicSuffixList.bundled()
+        check("PSL: list loaded (not the empty last-two-labels fallback)", psl.isPopulated)
         check("PSL: accounts.google.com -> google.com", psl.registrableDomain(of: "accounts.google.com") == "google.com")
         check("PSL: news.bbc.co.uk -> bbc.co.uk", psl.registrableDomain(of: "news.bbc.co.uk") == "bbc.co.uk")
 

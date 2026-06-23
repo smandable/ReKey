@@ -6,6 +6,17 @@ import Foundation
 struct PublicSuffixListTests {
     let psl = PublicSuffixList.bundled()
 
+    @Test("Bundled list is populated; the empty fallback isn't, and degrades visibly")
+    func populationSignal() {
+        #expect(psl.isPopulated)                              // the real bundled list
+        let empty = PublicSuffixList(data: "")
+        #expect(!empty.isPopulated)                           // the silent-degradation fallback
+        // The empty list falls back to last-two-labels — wrong for multi-part TLDs —
+        // which is exactly why isPopulated must flag it.
+        #expect(empty.registrableDomain(of: "news.bbc.co.uk") == "co.uk")
+        #expect(psl.registrableDomain(of: "news.bbc.co.uk") == "bbc.co.uk")
+    }
+
     @Test("Simple TLDs")
     func simple() {
         #expect(psl.registrableDomain(of: "google.com") == "google.com")

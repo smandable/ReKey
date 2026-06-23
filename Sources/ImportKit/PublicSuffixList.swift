@@ -43,6 +43,13 @@ public struct PublicSuffixList: Sendable {
         self.exceptions = exceptions
     }
 
+    /// Whether the list parsed a real rule set. False for the empty-fallback list
+    /// the bundled loader returns when the resource is missing/unreadable — in
+    /// which case eTLD+1 silently degrades to last-two-labels (wrong for
+    /// `co.uk`-style hosts), so callers / self-test can detect and flag it rather
+    /// than trusting degraded grouping.
+    public var isPopulated: Bool { !rules.isEmpty }
+
     /// The vendored list, parsed once and shared. Parsing 16k+ rules is not free,
     /// so every default `URLCanonicalizer()` reuses this instead of re-parsing.
     public static func bundled() -> PublicSuffixList { cached }
@@ -54,7 +61,9 @@ public struct PublicSuffixList: Sendable {
             let text = try? String(contentsOf: url, encoding: .utf8)
         else {
             // Fall back to an empty list (default rule "*" still applies, so
-            // eTLD+1 degrades to last-two-labels) rather than crashing.
+            // eTLD+1 degrades to last-two-labels) rather than crashing. The empty
+            // list reports `isPopulated == false` so the degradation isn't silent.
+            FileHandle.standardError.write(Data("ReKey: public suffix list failed to load — domain grouping degraded to last-two-labels.\n".utf8))
             return PublicSuffixList(data: "")
         }
         return PublicSuffixList(data: text)
