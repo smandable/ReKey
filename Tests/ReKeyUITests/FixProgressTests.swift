@@ -51,6 +51,19 @@ struct FixProgressTests {
         #expect(!reloaded.completedKeys.contains { $0.contains("Tr0ub4dour") })  // never stores the password
     }
 
+    @Test("An over-large import is rejected (OOM guard), not read in")
+    func oversizedImportRejected() throws {
+        clear(); defer { clear() }
+        let original = AppModel.maxImportBytes
+        AppModel.maxImportBytes = 16                     // tiny cap for the test
+        defer { AppModel.maxImportBytes = original }
+
+        let model = AppModel()
+        model.importData(Data(csv.utf8), displayName: "huge.csv")   // well over 16 bytes
+        #expect(model.allCredentials.isEmpty)            // nothing imported
+        #expect(model.auditError != nil)                 // and the user is told why
+    }
+
     @Test("A re-import still showing the old password flags the fix as maybe-unsaved")
     func detectsUnsavedFix() throws {
         clear(); defer { clear() }

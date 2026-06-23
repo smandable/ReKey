@@ -52,6 +52,9 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
   discovery. [cli]
 
 ### Fixed
+- **A huge file dropped in the watched folder (or picked) is no longer read into
+  memory.** Imports over a generous size cap are skipped with a clear message instead
+  of risking an out-of-memory hang on a file far too large to be a password export. [auditor]
 - **A background auto-import during an audit can't corrupt the results.** An audit
   now discards its result if the imported credentials changed while it was running
   (and a new import or re-run cancels the in-flight HIBP check instead of leaving it

@@ -668,10 +668,28 @@ public final class AppModel {
 
     // MARK: - Import
 
+    /// Generous upper bound on an import file's size. A password CSV is tiny (even
+    /// 100k logins is ~20 MB); anything far larger isn't a real export, and reading
+    /// an untrusted multi-GB file fully into memory is an OOM/DoS risk. A `var` so
+    /// tests can lower it. (See `FolderScan`, which already records each file's size.)
+    static var maxImportBytes = 64 * 1024 * 1024   // 64 MB
+
+    private func importByteSize(of url: URL) -> Int? {
+        (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+    }
+
+    private static func sizeString(_ bytes: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+
     /// Import a file selected via the file picker (security-scoped URL).
     public func importFile(at url: URL) {
         let didScope = url.startAccessingSecurityScopedResource()
         defer { if didScope { url.stopAccessingSecurityScopedResource() } }
+        if let size = importByteSize(of: url), size > Self.maxImportBytes {
+            auditError = "“\(url.lastPathComponent)” is too large to be a password export (\(Self.sizeString(size))) — skipped."
+            return
+        }
         guard let data = try? Data(contentsOf: url) else {
             auditError = "Couldn't read “\(url.lastPathComponent)” — the file may have moved or be unreadable."
             return
@@ -686,6 +704,10 @@ public final class AppModel {
 
     /// Import raw CSV bytes (e.g. drag-and-drop), without a source file on disk.
     public func importData(_ data: Data, displayName: String) {
+        guard data.count <= Self.maxImportBytes else {
+            auditError = "“\(displayName)” is too large to be a password export (\(Self.sizeString(data.count))) — skipped."
+            return
+        }
         ingest(data: data, url: nil, displayName: displayName)
     }
 
@@ -884,6 +906,13 @@ public final class AppModel {
         // Skip anything already imported, and anything that isn't a recognized
         // password export (so a random CSV in the folder is left alone).
         if files.contains(where: { $0.url?.path == url.path }) { return }
+        // Cap before reading: never slurp an untrusted multi-GB file into memory.
+        // Unlike a non-password CSV (silently ignored below), an over-cap file is
+        // surfaced — it's a likely-wrong file the user dropped in the watched folder.
+        if let size = importByteSize(of: url), size > Self.maxImportBytes {
+            autoImportMessage = "Skipped \(url.lastPathComponent): too large (\(Self.sizeString(size))) to be a password export."
+            return
+        }
         guard let data = try? Data(contentsOf: url),
               let table = try? CSVParser.parse(data),
               FormatDetector.detect(headers: table.headers) != .unknown else { return }
