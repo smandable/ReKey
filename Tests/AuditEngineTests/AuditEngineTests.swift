@@ -224,6 +224,18 @@ struct AuditEngineTests {
         #expect(r.duplicatedWithinSite == Set([gh1, gh2]))
     }
 
+    @Test("A within-site duplicate masked by a higher-severity finding survives in the set")
+    func withinSiteDupSurvivesMasking() async throws {
+        let r = try await report()
+        let gh1 = try #require(id(r, "github.com", "sean"))
+        // Its PRIMARY finding is the higher-severity reuse, which previously hid
+        // the within-site-duplicate kind entirely…
+        #expect(r.findingsByCredential[gh1]?.kind == .reusedAcrossSites)
+        // …but the within-site-duplicate signal is NOT lost — it stays in the set,
+        // which the Findings UI now surfaces as a secondary "Duplicate on site" badge.
+        #expect(r.duplicatedWithinSite.contains(gh1))
+    }
+
     @Test("Compromised: every 'password' entry across all four sources")
     func compromised() async throws {
         let r = try await report()

@@ -270,6 +270,13 @@ private struct CredentialRow: View {
         let isWeak = report.weak.contains(cred.id)
         let isCrossEcosystem = report.crossEcosystemDuplicates.contains(cred.id)
         let isStray = report.strayBlankUsername.contains(cred.id)
+        // A within-site duplicate (a redundant copy on the same site to clean up)
+        // whose PRIMARY finding is something higher-severity (compromised/reused),
+        // which would otherwise hide the duplicate entirely. Surface it as its own
+        // badge so that signal isn't lost. (When it IS the primary finding, the
+        // FindingBadge already shows "Duplicate", so don't double up.)
+        let isWithinSiteDup = report.duplicatedWithinSite.contains(cred.id)
+            && finding?.kind != .duplicatedWithinSite
         // Blank username but the ONLY login for its site (not a stray): a real
         // login saved without a name (reset/sign-up page) — review, don't delete.
         let isNoUsername = cred.username.isEmpty && !isStray
@@ -327,6 +334,9 @@ private struct CredentialRow: View {
                         }
                         if isWeak {
                             PillBadge(icon: "exclamationmark.shield.fill", text: "Weak", color: .yellow)
+                        }
+                        if isWithinSiteDup {
+                            PillBadge(icon: "doc.on.doc", text: "Duplicate on site", color: .yellow)
                         }
                         if isCrossEcosystem {
                             PillBadge(icon: "iphone",

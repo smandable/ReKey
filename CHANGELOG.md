@@ -47,6 +47,12 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
   removes exactly the rows it displays. `list --site` keeps substring matching for
   discovery. [cli]
 
+### Fixed
+- **A redundant duplicate copy of a login on the same site is no longer hidden** when
+  that login is also reused or breached. The Findings list now shows a "Duplicate on
+  site" badge alongside the primary issue, so you don't miss the extra copy to clean
+  up. [auditor]
+
 ### Changed
 - Extracted a single, unit-tested `CleanupScript` library as the one source of truth
   for every `rekey-cleanup` command string and purge block, replacing three
