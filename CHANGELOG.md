@@ -13,7 +13,7 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
-## [Unreleased]
+## [1.1.1] — 2026-06-23
 
 ### Changed
 - **The "may not have saved" warning no longer looks like a password-health finding.**
