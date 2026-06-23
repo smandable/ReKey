@@ -198,6 +198,11 @@ public final class AppModel {
     private let saveRecordsDefaultsKey = "rekey.fixSaveRecords"
     private let usernameOverridesDefaultsKey = "rekey.usernameOverrides"
     private let deletionDefaultsKey = "rekey.deletionKeys"
+    private let progressSchemaKey = "rekey.progressSchemaVersion"
+    /// On-disk shape version for the persisted progress. Bump it and add a
+    /// migration branch in `loadProgress` whenever the stored key/value format
+    /// changes, so an old plist isn't silently misread under a new format.
+    private static let progressSchemaVersion = 1
 
     /// Old/new password hashes per fixed account (progressKey), so a later import
     /// can verify the change saved. Hashes only — no passwords. Persisted.
@@ -526,6 +531,7 @@ public final class AppModel {
     }
 
     private func saveProgress() {
+        UserDefaults.standard.set(Self.progressSchemaVersion, forKey: progressSchemaKey)
         UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
         UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)
         UserDefaults.standard.set(Array(ignoredKeys), forKey: ignoredDefaultsKey)
@@ -537,6 +543,16 @@ public final class AppModel {
     }
 
     private func loadProgress() {
+        // Schema version gate. nil = pre-versioning (1.0 defaults), which IS the
+        // current v1 shape, so treat it as current. A FUTURE version (a newer build
+        // wrote these, or the plist was tampered) is left unloaded rather than
+        // misread as v1 — an empty, rebuildable progress beats corrupt deletion/fix
+        // targeting. (Add `storedVersion < current` migration branches here later.)
+        let storedVersion = (UserDefaults.standard.object(forKey: progressSchemaKey) as? Int) ?? Self.progressSchemaVersion
+        guard storedVersion <= Self.progressSchemaVersion else {
+            FileHandle.standardError.write(Data("ReKey: persisted progress is schema v\(storedVersion); this build understands v\(Self.progressSchemaVersion). Not loading it.\n".utf8))
+            return
+        }
         completedKeys = Set(UserDefaults.standard.stringArray(forKey: completedDefaultsKey) ?? [])
         skippedKeys = Set(UserDefaults.standard.stringArray(forKey: skippedDefaultsKey) ?? [])
         ignoredKeys = Set(UserDefaults.standard.stringArray(forKey: ignoredDefaultsKey) ?? [])

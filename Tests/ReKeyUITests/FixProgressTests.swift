@@ -15,6 +15,8 @@ struct FixProgressTests {
         UserDefaults.standard.removeObject(forKey: skippedKey)
         UserDefaults.standard.removeObject(forKey: "rekey.fixSaveRecords")
         UserDefaults.standard.removeObject(forKey: "rekey.usernameOverrides")
+        UserDefaults.standard.removeObject(forKey: "rekey.deletionKeys")
+        UserDefaults.standard.removeObject(forKey: "rekey.progressSchemaVersion")
         // Inject a fixed save-verification key: the test binary has no keychain
         // entitlement, so without this the keyed HMACs would be unavailable and
         // the save-verification assertions below couldn't run.
@@ -49,6 +51,24 @@ struct FixProgressTests {
         let reCred = try #require(reloaded.allCredentials.first)
         #expect(reloaded.isFixed(reCred))
         #expect(!reloaded.completedKeys.contains { $0.contains("Tr0ub4dour") })  // never stores the password
+    }
+
+    @Test("A future progress schema version is refused, not misread")
+    func futureSchemaNotLoaded() throws {
+        clear(); defer { clear() }
+        // Record progress under the current (v1) schema.
+        let model = AppModel()
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")
+        let cred = try #require(model.allCredentials.first)
+        model.recordFixDone(item(for: cred))
+        #expect(model.isFixed(cred))
+
+        // Stamp a future schema version, as a newer build (or a tampered plist) would.
+        UserDefaults.standard.set(999, forKey: "rekey.progressSchemaVersion")
+        let reloaded = AppModel()
+        reloaded.importData(Data(csv.utf8), displayName: "chrome.csv")
+        let reCred = try #require(reloaded.allCredentials.first)
+        #expect(!reloaded.isFixed(reCred))   // future-schema progress refused, not misread as v1
     }
 
     @Test("An over-large import is rejected (OOM guard), not read in")
