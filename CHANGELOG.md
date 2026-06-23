@@ -13,7 +13,7 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
-## [Unreleased] — 1.1.0
+## [1.1.0] — 2026-06-23
 
 ### Security
 - **rekey-cleanup backup snapshots are now owner-only and prune-safe.** Pre-delete
