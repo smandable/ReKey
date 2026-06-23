@@ -9,6 +9,7 @@ import HIBPClient
 import PasswordGenerator
 import ResetRouter
 import FixQueue
+import CleanupScript
 
 /// One imported CSV file and what came of it.
 public struct ImportedFile: Identifiable, Sendable {
@@ -23,18 +24,9 @@ public struct ImportedFile: Identifiable, Sendable {
     public var sourceDeleted: Bool = false
 }
 
-/// A site that a one-line `--site` delete can't safely clean: the entry the user
-/// fixed has no username to target and the site has other saved logins that the
-/// delete would also remove. Surfaced so the cleanup script can give id-based
-/// instructions instead.
-public struct ManualCleanupSite: Sendable {
-    public let domain: String
-    public let browser: BrowserSource
-    public let loginCount: Int
-}
-
 /// The fixed-login cleanup split into commands safe to run and sites needing
-/// manual, id-based removal.
+/// manual, id-based removal. (`CleanupTarget` / `ManualCleanupSite` live in the
+/// `CleanupScript` library, the single source of truth for script building.)
 public struct FixedCleanupPlan: Sendable {
     public var safeCommands: [String]
     public var manualSites: [ManualCleanupSite]
@@ -964,20 +956,13 @@ public final class AppModel {
             for site in plan.manualSites {
                 let cli = site.browser.cleanupCLIName ?? site.browser.rawValue
                 lines.append("#    \(site.domain) (\(site.browser.displayName), \(site.loginCount) logins):")
-                lines.append("#      rekey-cleanup list --browser \(cli) --site \(site.domain.shellArgument)")
+                if let list = CleanupScriptBuilder.listCommand(browser: site.browser, site: site.domain) {
+                    lines.append("#      \(list)")
+                }
                 lines.append("#      rekey-cleanup delete --browser \(cli) --id <id-of-the-blank-username-row> --confirm")
             }
         }
         return CleanupPlanner.script(lines: lines, confirm: confirm)
-    }
-
-    /// One (source, site, username) the cleanup script should target. For a safe
-    /// target, `username` is "" when the delete is site-level (Firefox — encrypted
-    /// usernames — or a blank-username login).
-    public struct CleanupTarget: Sendable {
-        public let source: BrowserSource
-        public let site: String
-        public let username: String
     }
 
     /// Pure core (testable): partition targets into ones that delete cleanly and
@@ -1047,7 +1032,7 @@ public final class AppModel {
     public func deletionPlan() -> (safe: [CleanupTarget], manualSites: [ManualCleanupSite]) {
         let targets = allCredentials
             .filter { isMarkedForDeletion($0) }
-            .map { Self.CleanupTarget(source: $0.source, site: $0.site, username: $0.username) }
+            .map { CleanupTarget(source: $0.source, site: $0.site, username: $0.username) }
         return Self.classifyCleanup(targets: targets) { source, domain in
             allCredentials.filter { $0.source == source && $0.site == domain }.count
         }
@@ -1084,8 +1069,9 @@ public final class AppModel {
             lines.append("trap 'rm -f \"$REKEY_TALLY\"' EXIT")
             lines.append("")
         }
-        lines += Self.purgeBlockLines(safe: safe, forced: forced, stillManual: stillManual,
-                                      confirm: confirm, tallyVar: needsTally ? "REKEY_TALLY" : nil)
+        lines += CleanupScriptBuilder.purgeBlocks(
+            safe: safe, forced: forced, stillManual: stillManual,
+            confirm: confirm, tallyVar: needsTally ? "REKEY_TALLY" : nil)
         if needsTally {
             // Grand total across every browser's purge. The sentinel lets "Add to
             // existing file…" find and regenerate this line so appended sessions
@@ -1114,8 +1100,9 @@ public final class AppModel {
         let (safe, manualSites) = deletionPlan()
         let forced = forceManual ? manualSites.filter { $0.browser.isChromiumFamily } : []
         let stillManual = forceManual ? manualSites.filter { !$0.browser.isChromiumFamily } : manualSites
-        let lines = Self.purgeBlockLines(safe: safe, forced: forced, stillManual: stillManual,
-                                         confirm: confirm, tallyVar: nil)
+        let lines = CleanupScriptBuilder.purgeBlocks(
+            safe: safe, forced: forced, stillManual: stillManual,
+            confirm: confirm, tallyVar: nil)
         return lines.isEmpty ? "" : lines.joined(separator: "\n")
     }
 
@@ -1155,69 +1142,10 @@ public final class AppModel {
         let (safe, manualSites) = deletionPlan()
         let forced = forceManual ? manualSites.filter { $0.browser.isChromiumFamily } : []
         let stillManual = forceManual ? manualSites.filter { !$0.browser.isChromiumFamily } : manualSites
-        let lines = Self.purgeBlockLines(safe: safe, forced: forced, stillManual: stillManual,
-                                         confirm: confirm, tallyVar: "REKEY_TALLY")
+        let lines = CleanupScriptBuilder.purgeBlocks(
+            safe: safe, forced: forced, stillManual: stillManual,
+            confirm: confirm, tallyVar: "REKEY_TALLY")
         return lines.isEmpty ? "" : lines.joined(separator: "\n")
-    }
-
-    /// Shared body builder: one `purge` heredoc per browser for the safe targets,
-    /// then a `--no-username` block per browser for the forced sites, then any
-    /// still-manual sites as commented `list` → `delete --id` steps. When
-    /// `tallyVar` is set, each purge appends to `$<tallyVar>` for a grand total.
-    private static func purgeBlockLines(
-        safe: [CleanupTarget],
-        forced: [ManualCleanupSite],
-        stillManual: [ManualCleanupSite],
-        confirm: Bool,
-        tallyVar: String?
-    ) -> [String] {
-        let confirmFlag = confirm ? " --confirm" : ""
-        let tally = tallyVar.map { " --tally \"$\($0)\"" } ?? ""
-        var lines: [String] = []
-
-        let byBrowser = Dictionary(grouping: safe, by: \.source)
-        for browser in byBrowser.keys.sorted(by: { $0.displayName < $1.displayName }) {
-            let cli = browser.cleanupCLIName ?? browser.rawValue
-            let group = byBrowser[browser]!.sorted { $0.site < $1.site }
-            lines.append("# \(browser.displayName) — \(group.count) site(s)")
-            lines.append("rekey-cleanup purge --browser \(cli)\(confirmFlag)\(tally) <<'REKEY_TARGETS'")
-            // Heredoc body is raw stdin (a quoted delimiter, so it's never
-            // shell-evaluated) — site/username can't inject. Tab-separated;
-            // username omitted when empty (site-level).
-            for t in group {
-                lines.append(t.username.isEmpty ? t.site : "\(t.site)\t\(t.username)")
-            }
-            lines.append("REKEY_TARGETS")
-            lines.append("")
-        }
-
-        if !forced.isEmpty {
-            // Force the no-username removals precisely: --no-username deletes only
-            // the empty-username rows on each site, leaving the named siblings.
-            let forcedByBrowser = Dictionary(grouping: forced, by: \.browser)
-            for browser in forcedByBrowser.keys.sorted(by: { $0.displayName < $1.displayName }) {
-                let cli = browser.cleanupCLIName ?? browser.rawValue
-                let sites = forcedByBrowser[browser]!.sorted { $0.domain < $1.domain }
-                lines.append("# \(browser.displayName) — \(sites.count) site(s), no-username rows only (forced)")
-                lines.append("rekey-cleanup purge --browser \(cli) --no-username\(confirmFlag)\(tally) <<'REKEY_TARGETS'")
-                for s in sites { lines.append(s.domain) }
-                lines.append("REKEY_TARGETS")
-                lines.append("")
-            }
-        }
-
-        if !stillManual.isEmpty {
-            lines.append("# ⚠︎ Manual deletion — these have no username on a site that has other saved")
-            lines.append("#    logins, so deleting by site would remove them too. Remove just the one you")
-            lines.append("#    marked, by id:")
-            for site in stillManual {
-                let cli = site.browser.cleanupCLIName ?? site.browser.rawValue
-                lines.append("#    \(site.domain) (\(site.browser.displayName), \(site.loginCount) logins):")
-                lines.append("#      rekey-cleanup list --browser \(cli) --site \(site.domain.shellArgument)")
-                lines.append("#      rekey-cleanup delete --browser \(cli) --id <id-of-the-login-you-marked> --confirm")
-            }
-        }
-        return lines
     }
 
     public func enqueueAllFlagged() async {

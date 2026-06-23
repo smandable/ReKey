@@ -50,12 +50,18 @@ let package = Package(
             dependencies: ["Model"],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
-        .executableTarget(name: "ReKeyCleanup", dependencies: ["BrowserStore"]),
+        // Single, unit-testable source of truth for the rekey-cleanup command
+        // strings + purge heredoc blocks the app generates (security-critical).
+        .target(name: "CleanupScript", dependencies: ["Model"]),
+        // The rekey-cleanup CLI's logic, extracted into a library so it can be
+        // unit-tested (the executable target itself can't be imported by tests).
+        .target(name: "CleanupCLI", dependencies: ["BrowserStore", "Model"]),
+        .executableTarget(name: "ReKeyCleanup", dependencies: ["CleanupCLI", "BrowserStore"]),
 
         // MARK: UI + app
         .target(name: "ReKeyUI", dependencies: [
             "Model", "ImportKit", "AuditEngine", "HIBPClient",
-            "PasswordGenerator", "ResetRouter", "FixQueue",
+            "PasswordGenerator", "ResetRouter", "FixQueue", "CleanupScript",
         ]),
         .executableTarget(name: "ReKeyApp", dependencies: ["ReKeyUI"]),
 
@@ -70,6 +76,8 @@ let package = Package(
         .testTarget(name: "ResetTests", dependencies: ["ResetRouter"]),
         .testTarget(name: "FixQueueTests", dependencies: ["FixQueue", "Model", "PasswordGenerator", "ResetRouter"]),
         .testTarget(name: "BrowserStoreTests", dependencies: ["BrowserStore"]),
+        .testTarget(name: "CleanupScriptTests", dependencies: ["CleanupScript", "Model"]),
+        .testTarget(name: "CleanupCLITests", dependencies: ["CleanupCLI", "BrowserStore", "Model"]),
         .testTarget(name: "ReKeyUITests", dependencies: ["ReKeyUI", "Model", "PasswordGenerator"]),
     ]
 )

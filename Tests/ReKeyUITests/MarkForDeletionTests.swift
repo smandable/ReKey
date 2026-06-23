@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Model
+import CleanupScript
 @testable import ReKeyUI
 
 // AppModel is @MainActor, so these run serialized on the main actor; `.serialized`
@@ -11,8 +12,8 @@ struct MarkForDeletionTests {
 
     // MARK: - Pure planner core (safe `--site`/`--username` vs manual id-step)
 
-    private func target(_ source: BrowserSource, _ site: String, _ user: String) -> AppModel.CleanupTarget {
-        AppModel.CleanupTarget(source: source, site: site, username: user)
+    private func target(_ source: BrowserSource, _ site: String, _ user: String) -> CleanupTarget {
+        CleanupTarget(source: source, site: site, username: user)
     }
 
     @Test("A Chromium login with a username deletes precisely by --username")

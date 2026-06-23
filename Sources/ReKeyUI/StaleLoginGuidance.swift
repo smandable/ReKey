@@ -1,5 +1,6 @@
 import Foundation
 import Model
+import CleanupScript
 
 /// Builds the (guidance-only) advice shown after a fix is done, for removing a
 /// stale saved login if the browser saved a new entry instead of updating.
@@ -23,14 +24,9 @@ enum StaleLoginGuidance {
 
     /// A ready-to-run `rekey-cleanup` command (dry-run; the user adds `--confirm`
     /// after quitting the browser). Nil when the tool doesn't support the source.
+    /// Delegates to ``CleanupScriptBuilder/deleteCommand`` — the single source of
+    /// truth for the `delete --site` command string.
     static func cliCommand(for source: BrowserSource, domain: String, username: String) -> String? {
-        guard let browser = source.cleanupCLIName else { return nil }
-        var command = "rekey-cleanup delete --browser \(browser) --site \(domain.shellArgument)"
-        // Firefox usernames are encrypted, so the tool can't filter by them;
-        // only Chromium narrows by username.
-        if source.isChromiumFamily, !username.isEmpty {
-            command += " --username \(username.shellArgument)"
-        }
-        return command
+        CleanupScriptBuilder.deleteCommand(browser: source, site: domain, username: username, confirm: false)
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import Model
+import CleanupScript
 
 /// Plans an old-browser cleanup from the imported credentials: which saved
 /// logins (in browsers you've migrated away from) can be removed, and the
@@ -57,11 +58,10 @@ enum CleanupPlanner {
     }
 
     /// Site-level `rekey-cleanup` command for a candidate, or nil if unsupported.
+    /// Site-level (no username), routed through the single-source builder.
     static func command(for candidate: Candidate, confirm: Bool) -> String? {
-        guard let browser = candidate.browser.cleanupCLIName else { return nil }
-        var cmd = "rekey-cleanup delete --browser \(browser) --site \(candidate.domain.shellArgument)"
-        if confirm { cmd += " --confirm" }
-        return cmd
+        CleanupScriptBuilder.deleteCommand(browser: candidate.browser, site: candidate.domain,
+                                           username: nil, confirm: confirm)
     }
 
     /// Shared script preamble: shebang, how-to-run / quit-browser / backup notes,
