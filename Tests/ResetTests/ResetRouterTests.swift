@@ -131,6 +131,39 @@ struct ResetRouterTests {
         #expect(result.isConfident)
     }
 
+    /// A redirect that lands OFF-DOMAIN must not be trusted as the change page —
+    /// otherwise a site (or MITM/open-redirect) could send the user to an
+    /// attacker-controlled "change your password" form they'd trust.
+    @Test func offDomainRedirectIsNotTrusted() async {
+        let attacker = "https://attacker.test/phish"
+        MockURLProtocol.handler = { [self] url in
+            if isChangePath(url) { return .redirect(to: attacker) }
+            if url.absoluteString == attacker { return .status(200) }
+            if isControlPath(url) { return .status(404) }
+            return .status(404)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let router = ResetRouter(session: .mocked(), fallbackMap: [:])
+        let result = await router.resolveChangeURL(for: "example.com")
+
+        #expect(result.source != .wellKnown)              // not trusted
+        #expect(result.url != URL(string: attacker))      // never opens the attacker URL
+        #expect(result.source == .siteRoot)               // no map entry → site root
+    }
+
+    /// A non-https fallback-map entry is refused (defensive scheme check).
+    @Test func nonHTTPSMapEntryIsSkipped() async {
+        MockURLProtocol.handler = { _ in .status(404) }   // can't pass well-known
+        defer { MockURLProtocol.handler = nil }
+
+        let router = ResetRouter(session: .mocked(), fallbackMap: ["acme.example": "http://acme.example/change"])
+        let result = await router.resolveChangeURL(for: "acme.example")
+
+        #expect(result.source == .siteRoot)               // http entry refused → site root
+        #expect(result.url.scheme == "https")
+    }
+
     /// Network error on the probe collapses to fallback / site root (never
     /// throws, never trusts well-known).
     @Test func networkErrorFallsThroughToSiteRoot() async {

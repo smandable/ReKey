@@ -83,7 +83,9 @@ public struct ResetRouter: Sendable {
             return ResetResolution(url: resolved, source: .wellKnown)
         }
 
-        if let mapped = fallbackMap[domain], let url = URL(string: mapped) {
+        // Curated, bundled map. Defensive scheme check: only ever open https, so a
+        // malformed/tampered entry can't open an http or odd-scheme URL.
+        if let mapped = fallbackMap[domain], let url = URL(string: mapped), isHTTPS(url) {
             return ResetResolution(url: url, source: .fallbackMap)
         }
 
@@ -110,8 +112,16 @@ public struct ResetRouter: Sendable {
             return nil
         }
 
-        // Prefer the final (post-redirect) URL the change request landed on.
-        return change.finalURL ?? changeURL
+        // Prefer the final (post-redirect) URL the change request landed on — but
+        // only trust it when it's still https and on the SAME site (the domain or a
+        // subdomain). A redirect that lands off-domain or off-https could send the
+        // user to an attacker-controlled "change your password" page, which they'd
+        // trust because ReKey sent them there. Curated cross-domain destinations
+        // belong in the fallback map, not an auto-followed redirect; otherwise fall
+        // through to the map / site root.
+        let resolved = change.finalURL ?? changeURL
+        guard isOnSite(resolved, domain: domain) else { return nil }
+        return resolved
     }
 
     /// A random, certainly-nonexistent path under `/.well-known/`, used to learn
@@ -147,6 +157,18 @@ public struct ResetRouter: Sendable {
 
     private func siteRoot(for domain: String) -> URL {
         URL(string: "https://\(domain)/") ?? URL(string: "https://example.invalid/")!
+    }
+
+    /// Whether `url` is an https URL. Used to refuse opening any non-https target.
+    private func isHTTPS(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "https"
+    }
+
+    /// Whether `url` is https AND its host is `domain` or a subdomain of it — the
+    /// guard that keeps a redirect from sending the user off-site.
+    private func isOnSite(_ url: URL, domain: String) -> Bool {
+        guard isHTTPS(url), let host = url.host?.lowercased() else { return false }
+        return host == domain || host.hasSuffix("." + domain)
     }
 
     /// Lowercase and strip a trailing dot / surrounding whitespace. Keeps the

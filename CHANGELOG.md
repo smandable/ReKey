@@ -16,6 +16,10 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 ## [Unreleased] — 1.1.0
 
 ### Security
+- **The "change password" link can't be redirected off-site.** When ReKey resolves
+  a site's change-password page, it now only trusts a redirect that stays on the
+  same site over https, and only opens https URLs from its curated map — so a rogue
+  redirect or open-redirect can't send you to an attacker's look-alike form. [auditor]
 - **The save-verification fingerprint on disk is no longer brute-forceable.** When
   you mark a fix done, ReKey records a hash of the old/new password (never the
   password) to later confirm the change saved. That hash is now a keyed HMAC whose
