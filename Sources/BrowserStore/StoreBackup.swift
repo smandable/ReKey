@@ -102,11 +102,11 @@ public enum StoreBackup {
         var byLabel: [String: [URL]] = [:]
         for dir in entries {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
-            // "<label>-<yyyyMMdd>-<HHmmss>-<rand>" → 4+ dash segments; label is all
-            // but the last three. Anything else isn't ours — skip it.
-            let parts = dir.lastPathComponent.split(separator: "-")
-            guard parts.count >= 4 else { continue }
-            let label = parts.dropLast(3).joined(separator: "-")
+            // Only ReKey's own "<label>-<yyyyMMdd>-<HHmmss>-<rand6>" snapshots — match
+            // the exact timestamp/rand shape so an UNRELATED directory under a
+            // user-supplied --backup-dir (e.g. "my-vacation-photos-2024") can't be
+            // mistaken for a backup and pruned. Label is everything before the tail.
+            guard let label = reKeyBackupLabel(of: dir.lastPathComponent) else { continue }
             byLabel[label, default: []].append(dir)
         }
         for (_, dirs) in byLabel where dirs.count > keepPerLabel {
@@ -114,6 +114,19 @@ public enum StoreBackup {
             let sorted = dirs.sorted { $0.lastPathComponent > $1.lastPathComponent }
             for old in sorted.dropFirst(keepPerLabel) { try? fm.removeItem(at: old) }
         }
+    }
+
+    /// The label of a ReKey backup directory name, or nil if `name` isn't one.
+    /// Requires the exact tail `…-<8 digits>-<6 digits>-<6 hex>` that
+    /// `backupDirectory(root:label:timestamp:)` produces.
+    static func reKeyBackupLabel(of name: String) -> String? {
+        let parts = name.split(separator: "-")
+        guard parts.count >= 4 else { return nil }
+        let date = parts[parts.count - 3], time = parts[parts.count - 2], rand = parts[parts.count - 1]
+        guard date.count == 8, date.allSatisfy(\.isNumber),
+              time.count == 6, time.allSatisfy(\.isNumber),
+              rand.count == 6, rand.allSatisfy(\.isHexDigit) else { return nil }
+        return parts.dropLast(3).joined(separator: "-")
     }
 
     /// Copy every existing file in `files` into `directory` (created if needed),
@@ -127,7 +140,11 @@ public enum StoreBackup {
             throw LoginStoreError.backupFailed("backup directory already exists and is not empty: \(directory.path)")
         }
         do {
-            try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+            // 0700: the snapshot holds a copy of the browser's store (plaintext
+            // index fields), so keep it owner-only rather than the default 0755 that
+            // could leave it group/other-readable under a custom --backup-dir.
+            try fm.createDirectory(at: directory, withIntermediateDirectories: true,
+                                   attributes: [.posixPermissions: 0o700])
         } catch {
             throw LoginStoreError.backupFailed("couldn't create \(directory.path): \(error.localizedDescription)")
         }
@@ -136,6 +153,8 @@ public enum StoreBackup {
             do {
                 if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
                 try fm.copyItem(at: file, to: dest)
+                // Owner-only: don't let the plaintext-bearing copy inherit world-readable perms.
+                try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
             } catch {
                 throw LoginStoreError.backupFailed("couldn't copy \(file.lastPathComponent): \(error.localizedDescription)")
             }

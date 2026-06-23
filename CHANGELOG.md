@@ -16,6 +16,10 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 ## [Unreleased] — 1.1.0
 
 ### Security
+- **rekey-cleanup backup snapshots are now owner-only and prune-safe.** Pre-delete
+  store backups are created `0700`/`0600` (not world-readable), and the snapshot
+  pruner only ever touches ReKey's own timestamped backup directories — so pointing
+  `--backup-dir` at a shared folder can't expose the copy or delete unrelated dirs. [cli]
 - **Breach-check requests are never cached to disk.** The Have I Been Pwned check now
   uses a private, cache-less session, so the password-derived hash prefix in each
   request can't be written to the on-disk URL cache. [auditor]

@@ -11,18 +11,38 @@ struct StoreBackupTests {
         let root = TestStores.tempDir()
         func mk(_ name: String) throws { try fm.createDirectory(at: root.appendingPathComponent(name), withIntermediateDirectories: true) }
         // 7 chrome (sortable by embedded timestamp), 2 arc, 1 unrelated dir.
-        for d in 1...7 { try mk("chrome-202601\(String(format: "%02d", d))-000000-aa\(d)") }
-        for h in 1...2 { try mk("arc-20260101-00000\(h)-bb\(h)") }
+        // Names use the real "<label>-<8 digits>-<6 digits>-<6 hex>" shape.
+        for d in 1...7 { try mk("chrome-2026010\(d)-000000-aaaaa\(d)") }
+        for h in 1...2 { try mk("arc-20260101-00000\(h)-bbbbb\(h)") }
         try mk("not-a-backup")
+        // Foreign dirs with 4+ dash segments that AREN'T ReKey backups (the old
+        // "4+ segments" heuristic would have grouped + pruned these in bulk).
+        for y in 2018...2025 { try mk("my-vacation-photos-\(y)") }
 
         StoreBackup.pruneOldBackups(root: root, keepPerLabel: 3)
 
         let left = Set(try fm.contentsOfDirectory(atPath: root.path))
         #expect(left.filter { $0.hasPrefix("chrome-") }.count == 3)   // newest 3 kept
-        #expect(left.contains("chrome-20260107-000000-aa7"))          // newest survives
-        #expect(!left.contains("chrome-20260101-000000-aa1"))         // oldest pruned
+        #expect(left.contains("chrome-20260107-000000-aaaaa7"))       // newest survives
+        #expect(!left.contains("chrome-20260101-000000-aaaaa1"))      // oldest pruned
         #expect(left.filter { $0.hasPrefix("arc-") }.count == 2)      // under the cap, untouched
         #expect(left.contains("not-a-backup"))                        // foreign dir left alone
+        #expect(left.filter { $0.hasPrefix("my-vacation-photos-") }.count == 8)  // all foreign dirs survive
+    }
+
+    @Test("Backup directory + copied plaintext-bearing files are owner-only (0700/0600)")
+    func backupPermissions() throws {
+        let fm = FileManager.default
+        let dir = TestStores.tempDir()
+        let src = dir.appendingPathComponent("Login Data")
+        try Data("plaintext-index".utf8).write(to: src)
+        let backup = dir.appendingPathComponent("snap")
+
+        try StoreBackup.copy(files: [src], into: backup)
+        let dirPerms = (try fm.attributesOfItem(atPath: backup.path)[.posixPermissions] as? Int) ?? 0
+        let filePerms = (try fm.attributesOfItem(atPath: backup.appendingPathComponent("Login Data").path)[.posixPermissions] as? Int) ?? 0
+        #expect(dirPerms == 0o700)
+        #expect(filePerms == 0o600)
     }
 
     @Test("Copies files into a fresh directory")
