@@ -71,28 +71,6 @@ struct CleanupPlannerTests {
         #expect(CleanupPlanner.script(for: [], confirm: false).isEmpty)
     }
 
-    @Test("Command-list script wraps with header, previews by default, gains --confirm")
-    func scriptFromCommands() {
-        let commands = [
-            "rekey-cleanup delete --browser chrome --site chase.com --username smandable1",
-            "rekey-cleanup delete --browser firefox --site chase.com",
-        ]
-        let preview = CleanupPlanner.script(commands: commands, confirm: false)
-        #expect(preview.contains("#!/bin/sh"))
-        #expect(preview.contains("PREVIEW ONLY"))
-        #expect(preview.contains(commands[0]))
-        #expect(preview.contains(commands[1]))
-        // No command line got --confirm (the "(no --confirm)" banner doesn't count).
-        #expect(!preview.contains("smandable1 --confirm"))
-        #expect(!preview.contains("chase.com --confirm"))
-
-        let real = CleanupPlanner.script(commands: commands, confirm: true)
-        #expect(real.contains("--username smandable1 --confirm"))
-        #expect(real.contains("--site chase.com --confirm"))   // firefox line
-        #expect(!real.contains("PREVIEW ONLY"))
-
-        #expect(CleanupPlanner.script(commands: [], confirm: false).isEmpty)
-    }
 
     @Test("Imported browsers lists every distinct source")
     func importedBrowsers() {

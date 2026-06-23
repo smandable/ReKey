@@ -18,7 +18,7 @@ struct MarkForDeletionTests {
 
     @Test("isReKeyCleanupScript accepts a generated script and rejects an unrelated file")
     func recognizesReKeyScript() {
-        let real = CleanupPlanner.script(commands: ["rekey-cleanup delete --browser chrome --site x.com"], confirm: false)
+        let real = CleanupPlanner.script(lines: ["rekey-cleanup delete --browser chrome --site x.com"], confirm: false)
         #expect(AppModel.isReKeyCleanupScript(real))
         #expect(!AppModel.isReKeyCleanupScript("#!/bin/sh\necho not mine\n"))
         #expect(!AppModel.isReKeyCleanupScript(""))

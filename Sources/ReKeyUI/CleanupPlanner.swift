@@ -105,19 +105,6 @@ enum CleanupPlanner {
         return lines.joined(separator: "\n")
     }
 
-    /// Wrap ready-made dry-run `rekey-cleanup delete` commands — one per login the
-    /// user has re-keyed, across all browsers — into a single runnable script.
-    /// Commands must be unique and carry no `--confirm`; this adds the header and,
-    /// when requested, `--confirm` to each line.
-    static func script(commands: [String], confirm: Bool) -> String {
-        guard !commands.isEmpty else { return "" }
-        var lines = header("remove the old saved logins for the accounts you've re-keyed.", confirm: confirm)
-        for cmd in commands {
-            lines.append(confirm ? cmd + " --confirm" : cmd)
-        }
-        return lines.joined(separator: "\n")
-    }
-
     /// Wrap already-final body lines (commands and/or `#` comments) with the
     /// header. Unlike `script(commands:)` this does not append `--confirm` — the
     /// caller has already prepared each line.
