@@ -16,6 +16,11 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 ## [Unreleased] — 1.1.0
 
 ### Security
+- **The save-verification fingerprint on disk is no longer brute-forceable.** When
+  you mark a fix done, ReKey records a hash of the old/new password (never the
+  password) to later confirm the change saved. That hash is now a keyed HMAC whose
+  key lives in the Keychain, so the value in the preferences file can't be used to
+  recover the (often weak) password offline. [auditor]
 - **A copied password no longer survives quitting the app.** The Fix Queue already
   auto-clears the clipboard 90s after a copy; now quitting inside that window clears
   it immediately too — but only if the clipboard still holds the value ReKey wrote,

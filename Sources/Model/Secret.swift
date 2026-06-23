@@ -69,10 +69,18 @@ public struct Secret: Sendable, Hashable {
     }
 
     /// SHA-256 of the password's UTF-8 bytes, as `Data`. For in-memory bucketing
-    /// and constant-input comparison (reuse analysis, clipboard auto-clear) —
-    /// never a security primitive, and never persisted or transmitted.
+    /// and constant-input comparison (reuse analysis) — never a security
+    /// primitive, and never persisted or transmitted.
     public func sha256() -> Data {
         withUTF8 { Data(SHA256.hash(data: Data($0))) }
+    }
+
+    /// Keyed HMAC-SHA256 of the password's UTF-8 bytes. Unlike ``sha256()``, this
+    /// is safe to persist: without `key` the output reveals nothing about the
+    /// password, so a value written to disk can't be brute-forced offline. Used
+    /// for save-verification, where `key` is a per-install secret in the Keychain.
+    public func hmac(key: SymmetricKey) -> Data {
+        withUTF8 { Data(HMAC<SHA256>.authenticationCode(for: Data($0), using: key)) }
     }
 }
 

@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import CryptoKit
 import Model
 @testable import ReKeyUI
 
@@ -14,6 +15,10 @@ struct FixProgressTests {
         UserDefaults.standard.removeObject(forKey: skippedKey)
         UserDefaults.standard.removeObject(forKey: "rekey.fixSaveRecords")
         UserDefaults.standard.removeObject(forKey: "rekey.usernameOverrides")
+        // Inject a fixed save-verification key: the test binary has no keychain
+        // entitlement, so without this the keyed HMACs would be unavailable and
+        // the save-verification assertions below couldn't run.
+        AppModel.verificationKeyOverride = SymmetricKey(data: Data(repeating: 0xAB, count: 32))
     }
     private let csv = "name,url,username,password,note\nGitHub,https://github.com/,sean,Tr0ub4dour&3,\n"
     private func csv(password: String) -> String {
@@ -62,6 +67,27 @@ struct FixProgressTests {
         let reCred = try #require(reopened.allCredentials.first)
         #expect(reopened.fixMaySaveFailed(reCred))   // old password still present → warn
         #expect(reopened.unsavedFixCount == 1)       // surfaced in the banner count
+    }
+
+    @Test("Persisted save-verification hashes are keyed HMACs, not a plain password digest")
+    func saveRecordHashesAreKeyed() throws {
+        clear(); defer { clear() }
+        let model = AppModel()
+        model.importData(Data(csv.utf8), displayName: "chrome.csv")   // old pw: Tr0ub4dour&3
+        let cred = try #require(model.allCredentials.first)
+        model.recordFixDone(item(for: cred, newPassword: "N3w-Str0ng-pw!"))
+
+        // A plain, offline-brute-forceable digest of the real passwords — exactly
+        // what must NOT end up in the preferences plist.
+        let plainOld = Data(SHA256.hash(data: Data("Tr0ub4dour&3".utf8))).base64EncodedString()
+        let plainNew = Data(SHA256.hash(data: Data("N3w-Str0ng-pw!".utf8))).base64EncodedString()
+
+        let raw = try #require(UserDefaults.standard.dictionary(forKey: "rekey.fixSaveRecords") as? [String: [String]])
+        let record = try #require(raw.values.first)   // [progressKey, oldHash, newHash, source]
+        #expect(record.count == 4)
+        #expect(!record[1].isEmpty)        // a (keyed) hash IS recorded…
+        #expect(record[1] != plainOld)     // …but it's not the raw SHA-256 of the password
+        #expect(record[2] != plainNew)
     }
 
     @Test("A re-import showing the new password clears the fix (saved OK)")

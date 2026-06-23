@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import CryptoKit
 import Observation
 import AppKit
 import Model
@@ -33,8 +34,10 @@ public struct FixedCleanupPlan: Sendable {
 }
 
 /// Hashes captured when a fix is marked done, so a later re-import can tell
-/// whether the change actually saved — only hashes are kept, never a password,
-/// matching the rest of the persisted progress.
+/// whether the change actually saved — only hashes are kept, never a password.
+/// The hashes are *keyed* HMACs (key in the Keychain, see `FixVerificationKey`),
+/// not plain digests, so the value persisted to UserDefaults can't be used to
+/// brute-force the real (often weak) password offline.
 private struct FixSaveRecord: Sendable {
     let progressKey: String
     let oldHash: String
@@ -369,6 +372,9 @@ public final class AppModel {
     private let hibp = HIBPClient()
 
     public init() {
+        // Resolve the save-verification HMAC key once (Keychain, or a test
+        // override). Done before any save record is written or verified.
+        self.verificationKey = Self.verificationKeyOverride ?? FixVerificationKey.loadOrCreate()
         let opener = BrowserOpener()
         self.browserOpener = opener
         self.availableBrowsers = Self.discoverBrowsers()
@@ -406,12 +412,33 @@ public final class AppModel {
         let recKey = Self.saveRecordKey(key, cred.source.rawValue)
         fixSaveRecords[recKey] = FixSaveRecord(
             progressKey: key,
-            oldHash: cred.password.sha256().base64EncodedString(),
-            newHash: item.newPassword.sha256().base64EncodedString(),
+            oldHash: verificationHash(of: cred.password),
+            newHash: verificationHash(of: item.newPassword),
             source: cred.source.rawValue
         )
         unsavedFixKeys.remove(recKey)
         saveProgress()
+    }
+
+    // MARK: - Save-verification hashing (keyed, not brute-forceable on disk)
+
+    /// Test seam: when set, every instance uses this fixed key instead of the
+    /// Keychain. Unsigned `swift test` binaries have no keychain entitlement, so
+    /// tests inject a stable key to exercise save-verification deterministically.
+    /// Production leaves this nil. (Set before constructing the model.)
+    static var verificationKeyOverride: SymmetricKey?
+
+    /// The per-install HMAC key for save-verification hashes, resolved once at
+    /// init. nil only when the Keychain is unavailable — in which case
+    /// verification is skipped rather than degrading to an unkeyed, persisted,
+    /// brute-forceable hash.
+    private let verificationKey: SymmetricKey?
+
+    /// Keyed HMAC of a password as base64, or "" when no key is available (so the
+    /// record simply never matches on re-import — a benign "neutral" outcome).
+    private func verificationHash(of secret: Secret) -> String {
+        guard let key = verificationKey else { return "" }
+        return secret.hmac(key: key).base64EncodedString()
     }
 
     /// Skip a fix — advances the queue item and records it persistently.
@@ -602,8 +629,11 @@ public final class AppModel {
             let hashes = Set(
                 allCredentials
                     .filter { $0.source == source && Self.progressKey(for: $0) == record.progressKey }
-                    .map { $0.password.sha256().base64EncodedString() }
+                    .map { verificationHash(of: $0.password) }
             )
+            // With no Keychain key, hashes are all "" and record hashes are too —
+            // skip rather than spuriously match empty against empty.
+            guard verificationKey != nil else { unsavedFixKeys.remove(recKey); continue }
             let key = recKey
             if hashes.isEmpty || hashes.contains(record.newHash) {
                 unsavedFixKeys.remove(key)        // not in this import, or new password saved
