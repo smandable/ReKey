@@ -33,17 +33,8 @@ public struct FixedCleanupPlan: Sendable {
     public var manualSites: [ManualCleanupSite]
 }
 
-/// Hashes captured when a fix is marked done, so a later re-import can tell
-/// whether the change actually saved — only hashes are kept, never a password.
-/// The hashes are *keyed* HMACs (key in the Keychain, see `FixVerificationKey`),
-/// not plain digests, so the value persisted to UserDefaults can't be used to
-/// brute-force the real (often weak) password offline.
-private struct FixSaveRecord: Sendable {
-    let progressKey: String
-    let oldHash: String
-    let newHash: String
-    let source: String
-}
+// `FixSaveRecord` / `ProgressState` / `ProgressStore` (the persistence layer) live
+// in ProgressStore.swift.
 
 /// App-wide coordinator. Owns imports, the audit, and the fix queue, and wires
 /// the concrete networking clients (HIBP, reset router) to the engines.
@@ -198,17 +189,7 @@ public final class AppModel {
     /// (both `markedForDeletionCount` and the plan filter to present credentials)
     /// and simply re-applies if that login is imported again.
     public private(set) var deletionKeys: Set<String> = []
-    private let completedDefaultsKey = "rekey.completedKeys"
-    private let skippedDefaultsKey = "rekey.skippedKeys"
-    private let ignoredDefaultsKey = "rekey.ignoredKeys"
-    private let saveRecordsDefaultsKey = "rekey.fixSaveRecords"
-    private let usernameOverridesDefaultsKey = "rekey.usernameOverrides"
-    private let deletionDefaultsKey = "rekey.deletionKeys"
-    private let progressSchemaKey = "rekey.progressSchemaVersion"
-    /// On-disk shape version for the persisted progress. Bump it and add a
-    /// migration branch in `loadProgress` whenever the stored key/value format
-    /// changes, so an old plist isn't silently misread under a new format.
-    private static let progressSchemaVersion = 1
+    // The UserDefaults keys + on-disk format live in `ProgressStore`.
 
     /// Old/new password hashes per fixed account (progressKey), so a later import
     /// can verify the change saved. Hashes only — no passwords. Persisted.
@@ -537,43 +518,20 @@ public final class AppModel {
     }
 
     private func saveProgress() {
-        UserDefaults.standard.set(Self.progressSchemaVersion, forKey: progressSchemaKey)
-        UserDefaults.standard.set(Array(completedKeys), forKey: completedDefaultsKey)
-        UserDefaults.standard.set(Array(skippedKeys), forKey: skippedDefaultsKey)
-        UserDefaults.standard.set(Array(ignoredKeys), forKey: ignoredDefaultsKey)
-        UserDefaults.standard.set(Array(deletionKeys), forKey: deletionDefaultsKey)
-        // [recKey: [progressKey, oldHash, newHash, source]] — plist-native, hashes only.
-        UserDefaults.standard.set(fixSaveRecords.mapValues { [$0.progressKey, $0.oldHash, $0.newHash, $0.source] },
-                                  forKey: saveRecordsDefaultsKey)
-        UserDefaults.standard.set(usernameOverrides, forKey: usernameOverridesDefaultsKey)
+        ProgressStore.save(ProgressState(
+            completed: completedKeys, skipped: skippedKeys, ignored: ignoredKeys,
+            deletion: deletionKeys, saveRecords: fixSaveRecords, usernameOverrides: usernameOverrides
+        ), to: .standard)
     }
 
     private func loadProgress() {
-        // Schema version gate. nil = pre-versioning (1.0 defaults), which IS the
-        // current v1 shape, so treat it as current. A FUTURE version (a newer build
-        // wrote these, or the plist was tampered) is left unloaded rather than
-        // misread as v1 — an empty, rebuildable progress beats corrupt deletion/fix
-        // targeting. (Add `storedVersion < current` migration branches here later.)
-        let storedVersion = (UserDefaults.standard.object(forKey: progressSchemaKey) as? Int) ?? Self.progressSchemaVersion
-        guard storedVersion <= Self.progressSchemaVersion else {
-            FileHandle.standardError.write(Data("ReKey: persisted progress is schema v\(storedVersion); this build understands v\(Self.progressSchemaVersion). Not loading it.\n".utf8))
-            return
-        }
-        completedKeys = Set(UserDefaults.standard.stringArray(forKey: completedDefaultsKey) ?? [])
-        skippedKeys = Set(UserDefaults.standard.stringArray(forKey: skippedDefaultsKey) ?? [])
-        ignoredKeys = Set(UserDefaults.standard.stringArray(forKey: ignoredDefaultsKey) ?? [])
-        deletionKeys = Set(UserDefaults.standard.stringArray(forKey: deletionDefaultsKey) ?? [])
-        let raw = UserDefaults.standard.dictionary(forKey: saveRecordsDefaultsKey) as? [String: [String]] ?? [:]
-        fixSaveRecords = [:]
-        for (storedKey, v) in raw {
-            if v.count == 4 {                       // current: key is recKey, value carries progressKey
-                fixSaveRecords[storedKey] = FixSaveRecord(progressKey: v[0], oldHash: v[1], newHash: v[2], source: v[3])
-            } else if v.count == 3 {                // legacy: key WAS the progressKey, value [old,new,source]
-                let recKey = Self.saveRecordKey(storedKey, v[2])
-                fixSaveRecords[recKey] = FixSaveRecord(progressKey: storedKey, oldHash: v[0], newHash: v[1], source: v[2])
-            }
-        }
-        usernameOverrides = UserDefaults.standard.dictionary(forKey: usernameOverridesDefaultsKey) as? [String: String] ?? [:]
+        let state = ProgressStore.load(from: .standard, recordKey: Self.saveRecordKey)
+        completedKeys = state.completed
+        skippedKeys = state.skipped
+        ignoredKeys = state.ignored
+        deletionKeys = state.deletion
+        fixSaveRecords = state.saveRecords
+        usernameOverrides = state.usernameOverrides
     }
 
     // MARK: - Change-page browser
