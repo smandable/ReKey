@@ -81,6 +81,21 @@ cp "$ACTOOL_OUT/Assets.car" "$APP/Contents/Resources/Assets.car"
 # Merge actool's icon keys (CFBundleIconName etc.) into the app Info.plist.
 /usr/libexec/PlistBuddy -c "Merge $ACTOOL_OUT/partial.plist" "$APP/Contents/Info.plist" 2>/dev/null || true
 
+echo "==> Self-test: confirming bundled resources load before submission…"
+# Guards against a packaging regression silently dropping a resource bundle (the
+# Public Suffix List, EFF wordlist, or reset-router fallback map). Without these
+# the auditor degrades — e.g. an empty PSL collapses every host to its last two
+# labels (news.bbc.co.uk -> co.uk), corrupting reuse grouping with no runtime
+# signal. Run on the assembled bundle BEFORE distribution signing: an
+# App-Store-signed sandboxed app won't launch locally, and signing neither adds
+# nor removes the resources we're checking here.
+SELFTEST_OUT="$("$APP/Contents/MacOS/ReKey" --selftest)" || true
+echo "$SELFTEST_OUT"
+if ! grep -q "SELFTEST PASS" <<<"$SELFTEST_OUT"; then
+    echo "==> SELF-TEST FAILED — a bundled resource did not load. Aborting before submission." >&2
+    exit 1
+fi
+
 echo "==> Embedding provisioning profile…"
 cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"
 

@@ -72,6 +72,18 @@ codesign --verify --verbose=2 "$APP"
 codesign --display --entitlements - --xml "$APP" 2>/dev/null | plutil -p - 2>/dev/null || \
     codesign --display --entitlements - "$APP"
 
+echo "==> Self-test: confirming bundled resources load in the packaged app…"
+# Guards against a packaging regression silently dropping a resource bundle (the
+# Public Suffix List, EFF wordlist, or reset-router fallback map). Without these
+# the auditor degrades — e.g. an empty PSL collapses every host to its last two
+# labels (news.bbc.co.uk -> co.uk), corrupting reuse grouping with no runtime signal.
+SELFTEST_OUT="$("$APP/Contents/MacOS/ReKey" --selftest)" || true
+echo "$SELFTEST_OUT"
+if ! grep -q "SELFTEST PASS" <<<"$SELFTEST_OUT"; then
+    echo "==> SELF-TEST FAILED — a bundled resource did not load. Aborting." >&2
+    exit 1
+fi
+
 echo ""
 echo "Built: $APP"
 echo "Run with:  open \"$APP\"   (or)   \"$APP/Contents/MacOS/ReKey\""

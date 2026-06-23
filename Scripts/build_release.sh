@@ -94,6 +94,19 @@ codesign --force --sign "$SIGN_APP" --entitlements "$ENTITLEMENTS" \
     --options runtime --timestamp "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
+echo "==> Self-test: confirming bundled resources load in the signed app…"
+# Guards against a packaging regression silently dropping a resource bundle (the
+# Public Suffix List, EFF wordlist, or reset-router fallback map). Without these
+# the auditor degrades — e.g. an empty PSL collapses every host to its last two
+# labels (news.bbc.co.uk -> co.uk), corrupting reuse grouping with no runtime
+# signal. Run before notarization so a failure aborts fast (and never ships).
+SELFTEST_OUT="$("$APP/Contents/MacOS/ReKey" --selftest)" || true
+echo "$SELFTEST_OUT"
+if ! grep -q "SELFTEST PASS" <<<"$SELFTEST_OUT"; then
+    echo "==> SELF-TEST FAILED — a bundled resource did not load. Aborting before notarization." >&2
+    exit 1
+fi
+
 echo "==> Notarizing the app (this can take a few minutes)…"
 ditto -c -k --keepParent "$APP" "$ZIP"
 xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
