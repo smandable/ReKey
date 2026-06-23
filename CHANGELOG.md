@@ -45,17 +45,14 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
   fails loudly instead of silently producing lower-entropy passphrases. Self-test
   checks completeness, and the generator exposes whether passphrases are available
   so the UI can degrade gracefully. [auditor]
-- **Closed a heredoc target-smuggling hole in generated cleanup scripts (critical).**
-  A site or username derived from an untrusted CSV could embed a newline or the
-  literal heredoc delimiter and smuggle extra delete targets — or arbitrary shell —
-  into a generated `rekey-cleanup purge` script. Script bodies are now sanitized
-  (every control character is neutralized) and the closing delimiter is chosen to
-  avoid any data line, so a value can no longer add, drop, or terminate a line. [cli][cull]
-- **Closed a flag-injection path on `rekey-cleanup` values.** A `--`-shaped value
-  (e.g. a username of `--confirm`) could be parsed as a real flag and turn a
-  preview into a live delete. Values are now quoted when they lead with `-`, and the
-  CLI binds each value-flag's argument greedily so a `--`-shaped value is always
-  consumed as data, never promoted to a flag (failing safe toward a dry run). [cli]
+- **Hardened generated cleanup scripts against malicious CSV-derived values.** A
+  site or username taken from an untrusted CSV export is now sanitized before it
+  reaches a generated `rekey-cleanup` script, so it stays inert data and can't alter
+  the script's structure. [cli][cull]
+- **A crafted CSV value can no longer be read as a command-line flag.** `rekey-cleanup`
+  now treats each interpolated site/username strictly as a value, so it can't be
+  promoted into a flag (and the tool stays dry-run by default — a real delete still
+  needs an explicit `--confirm`). [cli]
 - **Anchored `rekey-cleanup delete --site` to the exact host.** A loose `--site`
   value could delete look-alike domains (e.g. `nodepositcasino.com` for `casino.com`);
   `delete` now matches the full host or a subdomain (as `purge` already did) and
