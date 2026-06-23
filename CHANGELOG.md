@@ -16,6 +16,10 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 ## [Unreleased] — 1.1.0
 
 ### Security
+- **Plaintext passwords are scrubbed from memory when no longer referenced.** The
+  in-memory password wrapper now zeroes its buffer as soon as the last copy is
+  released, instead of leaving cleartext lingering in memory for the whole session.
+  (The wrapper is also now thoroughly tested.) [auditor]
 - **The "change password" link can't be redirected off-site.** When ReKey resolves
   a site's change-password page, it now only trusts a redirect that stays on the
   same site over https, and only opens https URLs from its curated map — so a rogue

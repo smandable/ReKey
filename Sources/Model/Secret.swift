@@ -17,49 +17,65 @@ import CryptoKit
 /// and never transmitted (the single exception is the HIBP k-anonymity check,
 /// which sends only the first 5 hex chars of the SHA-1 — see HIBPClient).
 public struct Secret: Sendable, Hashable {
-    /// UTF-8 bytes of the password. Private so callers must go through the
-    /// explicit accessors rather than reaching in.
-    private var storage: [UInt8]
+    /// Heap buffer holding the plaintext UTF-8 bytes, behind a reference type so
+    /// the bytes are scrubbed in `deinit` when the LAST `Secret` referencing them
+    /// is dropped — automatic, reliable zeroing without relying on opt-in calls,
+    /// and without the copy-on-write footgun a bare `[UInt8]` has (mutating a
+    /// shared array zeroes a fresh copy, not the bytes you meant to erase).
+    ///
+    /// `@unchecked Sendable`: `bytes` is written only in `init` and the
+    /// single-owner `deinit`; every other access is a read, so sharing the buffer
+    /// across `Secret` copies and actors is safe.
+    private final class Buffer: @unchecked Sendable {
+        var bytes: [UInt8]
+        init(_ bytes: [UInt8]) { self.bytes = bytes }
+        deinit {
+            // Best-effort overwrite of the buffer we own. (Earlier String/Array
+            // copies the runtime may have made are independent and unaffected.)
+            for i in bytes.indices { bytes[i] = 0 }
+        }
+    }
+    private var buffer: Buffer
 
     /// Create a secret from a `String`. The string's bytes are copied into the
     /// internal buffer.
     public init(_ value: String) {
-        self.storage = Array(value.utf8)
+        self.buffer = Buffer(Array(value.utf8))
     }
 
     /// Create a secret directly from UTF-8 bytes (e.g. from a generator).
     public init(utf8Bytes: [UInt8]) {
-        self.storage = utf8Bytes
+        self.buffer = Buffer(utf8Bytes)
     }
 
     /// Whether the password is empty (zero bytes).
-    public var isEmpty: Bool { storage.isEmpty }
+    public var isEmpty: Bool { buffer.bytes.isEmpty }
 
     /// Number of UTF-8 bytes. NOT the character count; use ``reveal()`` and
     /// count graphemes if you need user-facing length. Exposed because it is
     /// non-sensitive and handy for sanity checks.
-    public var byteCount: Int { storage.count }
+    public var byteCount: Int { buffer.bytes.count }
 
     /// Explicitly reveal the plaintext value as a `String`. Call this only at a
     /// genuine boundary: hashing, clipboard copy, or a deliberate reveal in the
     /// UI. Never log the result.
     public func reveal() -> String {
-        String(decoding: storage, as: UTF8.self)
+        String(decoding: buffer.bytes, as: UTF8.self)
     }
 
     /// Explicitly access the raw UTF-8 bytes within a closure (for hashing).
     /// Scoped so callers don't hold the buffer longer than needed.
     public func withUTF8<T>(_ body: ([UInt8]) throws -> T) rethrows -> T {
-        try body(storage)
+        try body(buffer.bytes)
     }
 
-    /// Best-effort overwrite of the backing buffer with zeros. A value type has
-    /// no deinit, so this is opt-in: call it when you are truly done with a
-    /// secret (e.g. after the clipboard auto-clear fires). Note that copies made
-    /// earlier are independent and unaffected.
+    /// Drop this `Secret`'s reference to the plaintext early. If it was the last
+    /// reference the buffer's `deinit` scrubs the bytes; copies held elsewhere keep
+    /// their own reference (and are scrubbed when they, too, are dropped). The bytes
+    /// are normally zeroed automatically on dealloc — this just makes it explicit
+    /// when you're done early (e.g. after a clipboard auto-clear).
     public mutating func zero() {
-        for i in storage.indices { storage[i] = 0 }
-        storage.removeAll(keepingCapacity: false)
+        buffer = Buffer([])
     }
 
     /// A masked representation safe to render in the UI: a fixed run of bullets
@@ -81,6 +97,16 @@ public struct Secret: Sendable, Hashable {
     /// for save-verification, where `key` is a per-install secret in the Keychain.
     public func hmac(key: SymmetricKey) -> Data {
         withUTF8 { Data(HMAC<SHA256>.authenticationCode(for: Data($0), using: key)) }
+    }
+
+    // Value semantics over the bytes (the buffer is an implementation detail, so
+    // never compare/hash by reference identity): two secrets with the same
+    // plaintext are equal and hash alike.
+    public static func == (lhs: Secret, rhs: Secret) -> Bool {
+        lhs.buffer.bytes == rhs.buffer.bytes
+    }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(buffer.bytes)
     }
 }
 

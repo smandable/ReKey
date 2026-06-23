@@ -69,6 +69,7 @@ let package = Package(
         .target(name: "TestSupport", dependencies: ["Model"], path: "Tests/TestSupport"),
 
         // MARK: Tests (Swift Testing)
+        .testTarget(name: "ModelTests", dependencies: ["Model"]),
         .testTarget(name: "ImportKitTests", dependencies: ["ImportKit", "TestSupport"]),
         .testTarget(name: "AuditEngineTests", dependencies: ["AuditEngine", "ImportKit", "HIBPClient", "TestSupport"]),
         .testTarget(name: "HIBPTests", dependencies: ["HIBPClient", "TestSupport"]),
