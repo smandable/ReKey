@@ -331,6 +331,12 @@ struct CullView: View {
             saveError = "Couldn't read \(url.lastPathComponent) to append to it: \(error.localizedDescription)"
             return
         }
+        // Refuse to splice into a file that isn't a ReKey cleanup script — appending
+        // purge blocks to an unrelated file would corrupt it.
+        guard AppModel.isReKeyCleanupScript(existing) else {
+            saveError = "\(url.lastPathComponent) doesn't look like a ReKey cleanup script. Pick a rekey-cleanup.sh you saved from ReKey, or use “Save…” to make a new one."
+            return
+        }
         guard let out = model.deletionScriptAppending(to: existing, confirm: confirm, forceManual: forceManual) else { return }
         do {
             try out.write(to: url, atomically: true, encoding: .utf8)

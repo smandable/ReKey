@@ -12,6 +12,7 @@ struct FixQueueView: View {
     @State private var cleanupCopied = false
     @State private var copiedLine: String?
     @State private var showRunHelp = false
+    @State private var saveError: String?   // surfaced in an alert so a failed save isn't silent
 
     var body: some View {
         // App Store build: the audit is free, the fix tools are a one-time unlock.
@@ -56,6 +57,11 @@ struct FixQueueView: View {
             .frame(maxWidth: 760, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
+        .alert("Couldn't save the script",
+               isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } }),
+               presenting: saveError) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { Text($0) }
     }
 
     /// One script that removes the stale old saved logins for every account the
@@ -203,7 +209,11 @@ struct FixQueueView: View {
         panel.canCreateDirectories = true
         panel.message = "Save the cleanup script. Review it, then run it in Terminal."
         if panel.runModal() == .OK, let url = panel.url {
-            try? script.write(to: url, atomically: true, encoding: .utf8)
+            do {
+                try script.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                saveError = "Couldn't write \(url.lastPathComponent): \(error.localizedDescription)"
+            }
         }
     }
 
@@ -217,7 +227,19 @@ struct FixQueueView: View {
         panel.message = "Choose a cleanup script to append these commands to (duplicates are skipped)."
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        // Read explicitly (no ""-fallback that could clobber) and refuse a file that
+        // isn't a ReKey cleanup script — appending commands to it would corrupt it.
+        let existing: String
+        do {
+            existing = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            saveError = "Couldn't read \(url.lastPathComponent) to append to it: \(error.localizedDescription)"
+            return
+        }
+        guard AppModel.isReKeyCleanupScript(existing) else {
+            saveError = "\(url.lastPathComponent) doesn't look like a ReKey cleanup script. Pick a rekey-cleanup.sh you saved from ReKey, or use “Save…” to make a new one."
+            return
+        }
         let existingLines = Set(
             existing.split(separator: "\n", omittingEmptySubsequences: false)
                 .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -230,7 +252,11 @@ struct FixQueueView: View {
         var out = existing
         if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
         out += toAdd.joined(separator: "\n") + "\n"
-        try? out.write(to: url, atomically: true, encoding: .utf8)
+        do {
+            try out.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            saveError = "Couldn't update \(url.lastPathComponent): \(error.localizedDescription)"
+        }
     }
 
     private var header: some View {

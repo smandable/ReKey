@@ -16,6 +16,14 @@ struct MarkForDeletionTests {
         CleanupTarget(source: source, site: site, username: user)
     }
 
+    @Test("isReKeyCleanupScript accepts a generated script and rejects an unrelated file")
+    func recognizesReKeyScript() {
+        let real = CleanupPlanner.script(commands: ["rekey-cleanup delete --browser chrome --site x.com"], confirm: false)
+        #expect(AppModel.isReKeyCleanupScript(real))
+        #expect(!AppModel.isReKeyCleanupScript("#!/bin/sh\necho not mine\n"))
+        #expect(!AppModel.isReKeyCleanupScript(""))
+    }
+
     @Test("A Chromium login with a username deletes precisely by --username")
     func chromiumPreciseDelete() {
         // Even with siblings on the site, a username-scoped delete is safe.
