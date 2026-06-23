@@ -16,6 +16,18 @@ struct PriorityAndWeakTests {
         #expect(!PasswordStrength.isWeak(Secret("J7#mK9$pL2@xQ")))
     }
 
+    @Test("Strong non-ASCII passwords aren't false-flagged as weak by grapheme count")
+    func multibyteNotWeak() {
+        // High-entropy multibyte passwords whose grapheme count is < 8: previously
+        // flagged weak purely on length, even though they draw from a huge alphabet.
+        #expect(!PasswordStrength.isWeak(Secret("日本語パスワード")))    // 7 CJK graphemes
+        #expect(!PasswordStrength.isWeak(Secret("🎉🎊🎈🎆🎇")))         // 5 distinct emoji
+        #expect(!PasswordStrength.isWeak(Secret("Köln1873$x")))      // mixed with accent
+        // Still caught: genuinely short or repeated, regardless of script.
+        #expect(PasswordStrength.isWeak(Secret("café")))             // too short even weighted
+        #expect(PasswordStrength.isWeak(Secret("🎉🎉")))              // <=2 distinct
+    }
+
     @Test("Important-domain heuristic")
     func important() {
         #expect(DomainPriority.isImportant("google.com"))

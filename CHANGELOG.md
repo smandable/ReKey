@@ -48,6 +48,10 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
   discovery. [cli]
 
 ### Fixed
+- **Strong passwords using non-Latin scripts or emoji are no longer mislabeled "Weak."**
+  The weak-password check judged length by character count, so a short-looking but
+  high-entropy password (e.g. CJK or emoji) read as weak; it now weights non-ASCII
+  characters by the larger alphabet they draw from. [auditor]
 - **A redundant duplicate copy of a login on the same site is no longer hidden** when
   that login is also reused or breached. The Findings list now shows a "Duplicate on
   site" badge alongside the primary issue, so you don't miss the extra copy to clean

@@ -7,21 +7,28 @@ import Model
 public enum PasswordStrength {
     public static func isWeak(_ secret: Secret) -> Bool {
         let pw = secret.reveal()
-        let count = pw.count
 
-        if count < 8 { return true }                         // too short
+        if Set(pw).count <= 2 { return true }                // "aaaaaaaa", "🎉🎉🎉🎉", "abababab"
         if pw.allSatisfy(\.isNumber) { return true }         // all digits (PINs, dates)
-        if Set(pw).count <= 2 { return true }                // e.g. "aaaaaaaa", "abababab"
         if commonPasswords.contains(pw.lowercased()) { return true }
+
+        // Judge length by an entropy-aware "effective length": a non-ASCII grapheme
+        // (CJK, accented, emoji, …) draws from a far larger alphabet than a single
+        // ASCII character, so it counts for more. Plain grapheme count would flag a
+        // short but high-entropy non-ASCII password ("日本語パスワード", "🎉🎊🎈🎆🎇")
+        // as weak.
+        let effectiveLength = pw.reduce(0) { $0 + ($1.isASCII ? 1 : 3) }
+        if effectiveLength < 8 { return true }               // genuinely too short
 
         var classes = 0
         if pw.contains(where: \.isLowercase) { classes += 1 }
         if pw.contains(where: \.isUppercase) { classes += 1 }
         if pw.contains(where: \.isNumber) { classes += 1 }
         if pw.contains(where: { !$0.isLetter && !$0.isNumber && !$0.isWhitespace }) { classes += 1 }
+        if pw.contains(where: { !$0.isASCII }) { classes += 1 }   // large-alphabet scripts/emoji
 
         // Short and low-variety (e.g. "letmein99").
-        if count < 12 && classes <= 2 { return true }
+        if effectiveLength < 12 && classes <= 2 { return true }
         return false
     }
 
