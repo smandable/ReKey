@@ -778,7 +778,14 @@ public final class AppModel {
 
     /// Best-effort secure delete of a source CSV: overwrite the bytes with random
     /// data, then unlink. A plaintext password CSV in ~/Downloads is the single
-    /// biggest real-world risk, so this is a first-class step.
+    /// biggest real-world risk, so removing it is a first-class step.
+    ///
+    /// HONEST CAVEAT: on a copy-on-write filesystem (APFS, the macOS default) the
+    /// in-place overwrite may land on freshly-allocated blocks, leaving the
+    /// original plaintext blocks intact until the OS reclaims them — so this is NOT
+    /// a guaranteed unrecoverable wipe. The dependable benefit is that the file is
+    /// gone; the overwrite is a best-effort bonus. `true` means "overwritten +
+    /// removed", not "provably unrecoverable". The UI wording reflects this.
     @discardableResult
     public func securelyDeleteSource(of file: ImportedFile) async -> Bool {
         guard let url = file.url else { return false }

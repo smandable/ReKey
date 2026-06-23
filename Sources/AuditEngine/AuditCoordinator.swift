@@ -118,12 +118,17 @@ public struct AuditReport: Sendable {
     /// Domain groups sorted **worst-first**: highest severity, then biggest reuse
     /// cluster, then important domains, then alphabetical. For the priority view.
     public var prioritizedDomainGroups: [DomainGroup] {
-        domainGroups.sorted { a, b in
+        // Precompute each group's sort keys ONCE (O(n)) — the comparator previously
+        // recomputed maxClusterSize (O(group size)) and isImportant on every
+        // comparison, making the sort O(n log n · k).
+        let clusterSize = Dictionary(uniqueKeysWithValues: domainGroups.map { ($0.id, maxClusterSize(for: $0)) })
+        let important = Dictionary(uniqueKeysWithValues: domainGroups.map { ($0.id, DomainPriority.isImportant($0.registrableDomain)) })
+        return domainGroups.sorted { a, b in
             if a.highestSeverity != b.highestSeverity { return a.highestSeverity > b.highestSeverity }
-            let ca = maxClusterSize(for: a), cb = maxClusterSize(for: b)
+            let ca = clusterSize[a.id] ?? 0, cb = clusterSize[b.id] ?? 0
             if ca != cb { return ca > cb }
-            let ia = DomainPriority.isImportant(a.registrableDomain) ? 1 : 0
-            let ib = DomainPriority.isImportant(b.registrableDomain) ? 1 : 0
+            let ia = (important[a.id] ?? false) ? 1 : 0
+            let ib = (important[b.id] ?? false) ? 1 : 0
             if ia != ib { return ia > ib }
             return a.registrableDomain < b.registrableDomain
         }

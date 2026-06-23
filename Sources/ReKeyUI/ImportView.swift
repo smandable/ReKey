@@ -202,8 +202,9 @@ struct ImportView: View {
 
                 if let url = file.url {
                     if file.sourceDeleted {
-                        Label("Source file securely deleted", systemImage: "checkmark.seal.fill")
+                        Label("Source file deleted", systemImage: "checkmark.seal.fill")
                             .font(.caption).foregroundStyle(.green)
+                            .help("ReKey overwrote the file, then removed it. On modern (APFS) disks an in-place overwrite can't guarantee the original bytes are unrecoverable, so the real protection is that the plaintext CSV is no longer on disk.")
                     } else {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -216,6 +217,7 @@ struct ImportView: View {
                                 Label("Securely delete", systemImage: "trash")
                             }
                             .controlSize(.small)
+                            .help("Overwrite the plaintext CSV, then remove it. The overwrite is best-effort — on copy-on-write disks (APFS) it may not scrub the original blocks — so the main benefit is that the file is gone.")
                         }
                         .padding(8)
                         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
