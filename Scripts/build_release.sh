@@ -16,7 +16,12 @@
 #                       --password <app-specific-password>
 #                   (create the app-specific password at appleid.apple.com)
 #
-# Optional: BUILD_NUMBER=… to override the auto date-time CFBundleVersion.
+# Optional:
+#   MARKETING_VERSION=1.1  Set CFBundleShortVersionString (the user-visible version)
+#                          in App/Info.plist — the single source of truth, also read
+#                          by build_mas.sh. Commit the change as part of the release.
+#                          Omit to keep whatever's already in the plist.
+#   BUILD_NUMBER=…         Override the auto date-time CFBundleVersion.
 #
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,6 +35,20 @@ DMG="$ROOT/build/ReKey.dmg"
 ZIP="$ROOT/build/ReKey-notarize.zip"
 ENTITLEMENTS="$ROOT/App/ReKey.entitlements"
 INFO_PLIST="$ROOT/App/Info.plist"
+
+# Marketing version (the user-visible "1.1"). When MARKETING_VERSION is set, write
+# it into the source Info.plist so it's the single source of truth shared with
+# build_mas.sh; the bundle copy below inherits it. (CFBundleVersion is the separate
+# auto date-time build number, stamped further down.)
+if [[ -n "${MARKETING_VERSION:-}" ]]; then
+    if [[ ! "$MARKETING_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+        echo "MARKETING_VERSION must look like 1, 1.1, or 1.2.3 (got '$MARKETING_VERSION')." >&2
+        exit 1
+    fi
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" "$INFO_PLIST"
+    echo "==> Set marketing version → $MARKETING_VERSION in App/Info.plist (remember to commit it)."
+fi
+echo "    marketing version: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
 
 echo "==> Building universal FULL app (release, arm64 + x86_64)…"
 swift build -c release --arch arm64 --arch x86_64 --product ReKey
