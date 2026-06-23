@@ -56,8 +56,20 @@ public struct RootView: View {
         case .importing: ImportView(model: model)
         case .findings: FindingsView(model: model)
         case .fixing: FixQueueView(model: model)
-        case .cull: CullView(model: model)
-        case .cleanup: CleanupView(model: model)
+        // Destructive views aren't compiled into the MAS build; those sections are
+        // also stripped from the sidebar there, so these cases are unreachable.
+        case .cull:
+            #if MAS_BUILD
+            EmptyView()
+            #else
+            CullView(model: model)
+            #endif
+        case .cleanup:
+            #if MAS_BUILD
+            EmptyView()
+            #else
+            CleanupView(model: model)
+            #endif
         case .help: HelpView(model: model)
         case .settings: SettingsView(store: model.store)
         }

@@ -2,6 +2,11 @@ import SwiftUI
 import AppKit
 import Model
 
+// Destructive UI is NOT compiled into the sandboxed App Store build (defense in
+// depth): MAS already strips Cull / Clean Up from navigation, and this leaves the
+// views out of that binary entirely. RootView renders an empty case there.
+#if !MAS_BUILD
+
 /// A compact, bulk "mark for deletion" list. Built for culling at scale — a
 /// browser you've migrated away from can hold hundreds of dead logins for sites
 /// you'll never revisit. Unlike the Fix Queue (which re-keys an account), Cull
@@ -346,3 +351,5 @@ struct CullView: View {
     }
 
 }
+
+#endif

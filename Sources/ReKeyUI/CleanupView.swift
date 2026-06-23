@@ -2,6 +2,9 @@ import SwiftUI
 import AppKit
 import Model
 
+// Not compiled into the sandboxed App Store build (defense in depth) — see CullView.
+#if !MAS_BUILD
+
 /// Step 4 (optional): clean up logins left in browsers you've migrated away from.
 /// The app never deletes — it builds a `rekey-cleanup` script you review and run.
 struct CleanupView: View {
@@ -246,3 +249,4 @@ private enum CleanupRow: Identifiable {
         }
     }
 }
+#endif
