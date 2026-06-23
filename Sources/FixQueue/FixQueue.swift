@@ -71,6 +71,12 @@ public final class FixQueue {
     /// auto-clear timer instead of letting it wipe the freshly-copied value early.
     private var clipboardCopyGeneration = 0
 
+    /// Change-count token of the most recent copy whose timed auto-clear hasn't run
+    /// yet — so an app-termination hook (``flushClipboardClear()``) can clear a
+    /// copied password that would otherwise outlive the app if it quits inside the
+    /// auto-clear window. nil once the timer has handled it.
+    private var pendingClipboardToken: Int?
+
     public init(
         generator: PasswordGenerator,
         router: any ChangeURLResolving,
@@ -252,6 +258,7 @@ public final class FixQueue {
     /// check is the real safety net, so a re-copy still effectively resets the
     /// clock even without it.)
     private func scheduleClipboardClear(token: Int) {
+        pendingClipboardToken = token              // so a quit can clear it early
         clipboardCopyGeneration += 1
         let generation = clipboardCopyGeneration   // a later copy resets the clock
         let delay = clipboardClearAfter
@@ -260,7 +267,20 @@ public final class FixQueue {
             try? await Task.sleep(for: delay)
             guard let self, generation == self.clipboardCopyGeneration else { return }
             clipboard.clearIfUnchanged(since: token)
+            self.pendingClipboardToken = nil       // handled; nothing left to flush
         }
+    }
+
+    /// Clear the clipboard now if it still holds the password we last copied — for
+    /// an app-termination hook, so a copied secret doesn't outlive the app when it
+    /// quits inside the auto-clear window (the timed clear never fires after exit).
+    /// Safe to call anytime and idempotent: like the timer, it compares change
+    /// counts and only clears when our value is still current, so it never wipes
+    /// something the user copied afterward.
+    public func flushClipboardClear() {
+        guard let token = pendingClipboardToken else { return }
+        clipboard.clearIfUnchanged(since: token)
+        pendingClipboardToken = nil
     }
 
     // MARK: - Helpers

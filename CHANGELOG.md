@@ -16,6 +16,10 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 ## [Unreleased] — 1.1.0
 
 ### Security
+- **A copied password no longer survives quitting the app.** The Fix Queue already
+  auto-clears the clipboard 90s after a copy; now quitting inside that window clears
+  it immediately too — but only if the clipboard still holds the value ReKey wrote,
+  so it never wipes something you copied afterward. [auditor]
 - **Passphrase entropy is now guaranteed.** The bundled EFF wordlist is verified at
   load to be the full, unique 7,776-word set; a short or duplicate-laden list now
   fails loudly instead of silently producing lower-entropy passphrases. Self-test

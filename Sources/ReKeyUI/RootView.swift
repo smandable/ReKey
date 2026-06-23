@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// The app's main window: a sidebar (Import / Findings / Fix Queue / Clean Up)
 /// and a detail pane that swaps with the selected section.
@@ -37,6 +40,14 @@ public struct RootView: View {
         }
         // Float above the browser change page ReKey opens, so it isn't buried.
         .background(WindowLevelModifier(keepOnTop: keepOnTop))
+        // On quit, clear a still-copied password from the clipboard — the timed
+        // auto-clear can't fire after the process exits, so a quit inside the
+        // window would otherwise leave the plaintext behind.
+        #if canImport(AppKit)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            model.fixQueue.flushClipboardClear()
+        }
+        #endif
     }
 
     @ViewBuilder

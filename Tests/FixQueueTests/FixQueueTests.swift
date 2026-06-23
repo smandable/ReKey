@@ -322,4 +322,31 @@ struct FixQueueTests {
         try await Task.sleep(for: .milliseconds(250))
         #expect(pasteboard.value == nil)   // auto-cleared by the scheduled timer
     }
+
+    @Test("flushClipboardClear wipes a still-copied password on quit (timer hasn't fired)")
+    func flushClearsOnQuit() async throws {
+        // Long window the timer won't reach: simulate a quit while the copied
+        // password is still on the clipboard.
+        let (queue, pasteboard, _) = try makeQueue(clearAfter: .seconds(90))
+        queue.copySecret(Secret("temp-current-pw"))
+        #expect(pasteboard.value == "temp-current-pw")
+        queue.flushClipboardClear()
+        #expect(pasteboard.value == nil)   // cleared on quit instead of lingering forever
+    }
+
+    @Test("flushClipboardClear leaves a clipboard the user has since overwritten")
+    func flushRespectsUser() async throws {
+        let (queue, pasteboard, _) = try makeQueue(clearAfter: .seconds(90))
+        queue.copySecret(Secret("temp-current-pw"))
+        pasteboard.value = "something the user copied"   // bumps changeCount
+        queue.flushClipboardClear()
+        #expect(pasteboard.value == "something the user copied")   // untouched
+    }
+
+    @Test("flushClipboardClear is a no-op when nothing was copied")
+    func flushNoopWhenNothingCopied() async throws {
+        let (queue, pasteboard, _) = try makeQueue()
+        queue.flushClipboardClear()
+        #expect(pasteboard.value == nil)
+    }
 }
