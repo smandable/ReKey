@@ -51,11 +51,28 @@ exports themselves, finds reused/weak/breached passwords, and opens each site's
 own change-password page in the user's browser so the user can update it — ReKey
 never writes to any browser store, Apple Passwords, or the keychain.
 
+**Sample data for review (required — Guideline 2.1(a)).** ReKey has no data of its
+own until the user imports a CSV they exported from a browser/password manager, so
+a sample export is needed to exercise the app. A permanent sample is hosted at:
+
+  https://raw.githubusercontent.com/smandable/ReKey/master/docs/demo-accounts.csv
+
+It is a standard Chrome/Arc-format export (`name,url,username,password,note`)
+containing reused, weak, and known-breached passwords plus two strong ones, so
+every finding type appears. Step-by-step:
+1. Download the CSV above (in Safari: right-click the link → Download Linked File,
+   or open it and File → Save).
+2. Open ReKey → Import tab → "Import CSV…" → choose the downloaded file. (It's a
+   Chromium-format export; the default browser label is fine.)
+3. Click "Run audit." The Findings tab lists the reused / weak / compromised
+   logins. (The breach check needs network — see below.)
+4. Open the "Fix Queue" tab to see the unlock paywall. Tap "Unlock — $12.99" and
+   complete the purchase with a sandbox Apple ID; the fix tools then unlock.
+   "Restore Purchase" is on the paywall and in Settings.
+
 Free / paid split: importing and the full audit (the Findings list) are FREE. The
 Fix Queue (generate replacements + open each change page) is unlocked by a single
-non-consumable in-app purchase ("Unlock Fixing"). To test it, use a sandbox Apple
-ID: open the Fix Queue tab to see the paywall, purchase the unlock, and the queue
-becomes available; "Restore Purchase" is on the paywall and in Settings.
+non-consumable in-app purchase ("Unlock Fixing").
 
 Two network behaviors, both user-initiated and privacy-preserving:
 1) Breach check via Have I Been Pwned using k-anonymity — only the first 5
