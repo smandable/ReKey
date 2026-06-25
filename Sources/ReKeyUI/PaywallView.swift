@@ -31,14 +31,27 @@ struct PaywallView: View {
                 .frame(maxWidth: 380, alignment: .leading)
                 .padding(.vertical, 6)
 
-                Button {
-                    Task { await store.purchase() }
-                } label: {
-                    Text(store.displayPrice.map { "Unlock — \($0)" } ?? "Unlock")
+                // The price only exists once the product loads. Rather than show a
+                // permanently-greyed Unlock button when it doesn't, show progress
+                // while fetching and an explicit Try Again when it failed or came
+                // back empty (e.g. the store wasn't reachable, or the IAP isn't
+                // available in this storefront yet).
+                if let price = store.displayPrice {
+                    Button {
+                        Task { await store.purchase() }
+                    } label: {
+                        Text("Unlock — \(price)").frame(maxWidth: 300)
+                    }
+                    .controlSize(.large).buttonStyle(.borderedProminent)
+                    .disabled(store.working)
+                } else if store.loadingProduct {
+                    ProgressView("Contacting the App Store…")
+                        .controlSize(.small).frame(maxWidth: 300)
+                } else {
+                    Button("Try Again") { Task { await store.loadProduct() } }
+                        .controlSize(.large).buttonStyle(.borderedProminent)
                         .frame(maxWidth: 300)
                 }
-                .controlSize(.large).buttonStyle(.borderedProminent)
-                .disabled(store.displayPrice == nil || store.working)
 
                 Button("Restore Purchase") { Task { await store.restore() } }
                     .buttonStyle(.link).disabled(store.working)
@@ -61,6 +74,12 @@ struct PaywallView: View {
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
+        .task {
+            // Re-attempt the load when the paywall appears if the price isn't in
+            // yet — covers the launch fetch coming back empty before the store was
+            // ready. No-op if a load is already in flight or the price is loaded.
+            if store.displayPrice == nil { await store.loadProduct() }
+        }
     }
 
     private func benefit(_ icon: String, _ text: String) -> some View {

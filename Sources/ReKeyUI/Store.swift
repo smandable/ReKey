@@ -23,6 +23,10 @@ public final class Store {
     public private(set) var displayPrice: String?
     /// True while a purchase or restore is in flight.
     public private(set) var working = false
+    /// True while the initial product fetch is in flight — distinct from `working`
+    /// (a purchase/restore). Lets the paywall show a spinner instead of a dead,
+    /// unexplained Unlock button before the price arrives.
+    public private(set) var loadingProduct = false
     /// User-facing message from the last store operation, if any.
     public var lastError: String?
 
@@ -48,10 +52,26 @@ public final class Store {
     // already prevents a retain cycle. (A deinit can't touch the main-actor-isolated
     // task under Swift 6 anyway.)
 
-    private func loadProduct() async {
+    /// Fetch the unlock product so the paywall can show its price and enable the
+    /// Unlock button. Public + re-callable so a "Try Again" affordance can retry.
+    ///
+    /// `Product.products(for:)` does NOT throw when the product simply isn't
+    /// purchasable in the current storefront yet — it returns an empty array. That
+    /// is the normal outcome when the Paid Apps Agreement isn't in effect, the IAP
+    /// metadata is incomplete, or the store is momentarily unreachable. We surface
+    /// our own message for that case so the paywall never shows a silently-disabled
+    /// button with no explanation (which reads as a broken purchase).
+    public func loadProduct() async {
+        guard !loadingProduct else { return }
+        loadingProduct = true; defer { loadingProduct = false }
+        lastError = nil
         do {
-            product = try await Product.products(for: [Self.unlockProductID]).first
-            displayPrice = product?.displayPrice
+            let match = try await Product.products(for: [Self.unlockProductID]).first
+            product = match
+            displayPrice = match?.displayPrice
+            if match == nil {
+                lastError = "The App Store didn't return the unlock. Please try again in a moment."
+            }
         } catch {
             lastError = "Couldn't reach the App Store — check your connection and try again."
         }
@@ -115,6 +135,7 @@ public final class Store {
     }
     #else
     public init() { isUnlocked = true }   // direct build: no IAP, fully unlocked
+    public func loadProduct() async {}
     public func purchase() async {}
     public func restore() async {}
     public func refresh() async {}

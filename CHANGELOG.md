@@ -15,6 +15,14 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
 ## [Unreleased]
 
+### Fixed
+- **The unlock paywall no longer shows a silently-disabled button when the product
+  can't load.** Previously, if the App Store returned no purchasable product (an
+  empty result — not a thrown error), the Unlock button stayed greyed out with no
+  explanation. It now shows progress while the price loads, and a clear message
+  plus a **Try Again** button if the load fails or comes back empty, and it
+  re-attempts the load when the paywall reappears. [auditor]
+
 ### Changed
 - Build/packaging scripts now run the packaged app's `--selftest` and fail the
   build if a bundled resource (Public Suffix List, EFF wordlist, reset-router
