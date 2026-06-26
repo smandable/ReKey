@@ -15,20 +15,25 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
 ## [Unreleased]
 
-### Fixed
-- **The unlock paywall no longer shows a silently-disabled button when the product
-  can't load.** Previously, if the App Store returned no purchasable product (an
-  empty result — not a thrown error), the Unlock button stayed greyed out with no
-  explanation. It now shows progress while the price loads, and a clear message
-  plus a **Try Again** button if the load fails or comes back empty, and it
-  re-attempts the load when the paywall reappears. [auditor]
-
 ### Changed
 - Build/packaging scripts now run the packaged app's `--selftest` and fail the
   build if a bundled resource (Public Suffix List, EFF wordlist, reset-router
   fallback map) doesn't load — so a resource-drop regression can't ship silently. [internal]
 
 ## [1.1.1] — 2026-06-23
+
+The GitHub .dmg of 1.1.1 shipped 2026-06-23. The **App Store** build of 1.1.1
+(build 20260625 — ReKey's first App Store release) additionally carries the
+paywall fix below. It is App-Store-only (the .dmg has no in-app purchase), so the
+.dmg is unaffected.
+
+### Fixed
+- **The unlock paywall no longer shows a silently-disabled button when the product
+  can't load.** If the App Store returned no purchasable product (an empty result —
+  not a thrown error), the Unlock button stayed greyed out with no explanation. It
+  now shows progress while the price loads, and a clear message plus a **Try Again**
+  button if the load fails or comes back empty, and it re-attempts the load when the
+  paywall reappears. [auditor]
 
 ### Changed
 - **The "may not have saved" warning no longer looks like a password-health finding.**
