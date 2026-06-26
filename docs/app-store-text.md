@@ -66,16 +66,16 @@ spaces.
 security,pwned,strength,privacy,duplicate,checkup,health,hibp,weak,leak,exposed,compromised,scanner
 ```
 
-## What's New (Version 1.1)
+## What's New (Version 1.1.2)
 ```
-[DRAFT — replace with v1.1's actual user-facing changes for the App Store
-(pure-auditor) build before submitting. Remember: changes to the rekey-cleanup
-CLI / Cull deletion path are NOT part of this app and don't belong here.]
+- The one-time unlock for the guided fix tools is now available.
+- Reliability and polish improvements.
 ```
 
 ### Previous versions
 
 ```
+Version 1.1.1 — A clearer unlock paywall: progress while the price loads and a Try Again option if it doesn't, instead of an inactive button.
 Version 1.0 — Initial release.
 ```
 

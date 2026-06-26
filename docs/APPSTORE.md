@@ -32,7 +32,9 @@ aren't part of this app.
   - Display Name: `Unlock Fixing`
   - Description: "Unlock the Fix Queue: generate strong replacements and open each
     site's change-password page. A one-time purchase."
-  - Submit the IAP **together with** the app's first version (review them as a pair).
+  - Submit the IAP **attached to an app version** — a first-time IAP is only approved
+    when reviewed together with a binary. (If a version already shipped without it,
+    attach the IAP to the *next* version and submit them as a pair.)
 - Enroll in the **App Store Small Business Program** (one-time, App Store Connect) →
   Apple's cut drops 30% → 15%, so $12.99 nets ≈ $11.04.
 
@@ -53,17 +55,19 @@ never writes to any browser store, Apple Passwords, or the keychain.
 
 **Sample data for review (required — Guideline 2.1(a)).** ReKey has no data of its
 own until the user imports a CSV they exported from a browser/password manager, so
-a sample export is needed to exercise the app. A permanent sample is hosted at:
+a sample export is needed to exercise the app. **The block to paste into App Review
+Information → Notes is [`REVIEWER-NOTES.md`](REVIEWER-NOTES.md)** — it embeds the
+sample CSV inline, so the reviewer can create the test file by copy-paste with **no
+download or network access**. (A hosted copy of the same CSV also lives at
+https://raw.githubusercontent.com/smandable/ReKey/master/docs/demo-accounts.csv as
+an optional fallback — but don't make the reviewer depend on fetching it.)
 
-  https://raw.githubusercontent.com/smandable/ReKey/master/docs/demo-accounts.csv
-
-It is a standard Chrome/Arc-format export (`name,url,username,password,note`)
-containing reused, weak, and known-breached passwords plus two strong ones, so
-every finding type appears. Step-by-step:
-1. Download the CSV above (in Safari: right-click the link → Download Linked File,
-   or open it and File → Save).
-2. Open ReKey → Import tab → "Import CSV…" → choose the downloaded file. (It's a
-   Chromium-format export; the default browser label is fine.)
+The sample is a standard Chrome/Arc-format export (`name,url,username,password,note`)
+with reused, weak, and known-breached passwords plus two strong ones, so every
+finding type appears. Step-by-step:
+1. Save the SAMPLE CSV from the reviewer notes as a plain-text file `sample.csv`.
+2. Open ReKey → Import tab → "Import CSV…" → choose it. (Chromium-format export;
+   the default browser label is fine.)
 3. Click "Run audit." The Findings tab lists the reused / weak / compromised
    logins. (The breach check needs network — see below.)
 4. Open the "Fix Queue" tab to see the unlock paywall. Tap "Unlock — $12.99" and

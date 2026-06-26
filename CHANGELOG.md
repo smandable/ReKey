@@ -20,6 +20,15 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
   build if a bundled resource (Public Suffix List, EFF wordlist, reset-router
   fallback map) doesn't load — so a resource-drop regression can't ship silently. [internal]
 
+## [1.1.2] — 2026-06-26
+
+App Store re-spin so the one-time **Unlock Fixing** in-app purchase ships live. A
+first-time IAP is only approved when reviewed attached to an app version; the
+1.1.1 App Store build was approved *without* it, so the IAP was returned
+("Developer Action Needed") and the unlock wasn't purchasable. 1.1.2 carries the
+IAP through review attached to a new binary. No app code change from the 1.1.1 App
+Store build. The GitHub .dmg has no in-app purchase and is unaffected. [auditor]
+
 ## [1.1.1] — 2026-06-23
 
 The GitHub .dmg of 1.1.1 shipped 2026-06-23. The **App Store** build of 1.1.1
