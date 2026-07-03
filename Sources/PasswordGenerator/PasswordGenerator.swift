@@ -204,6 +204,14 @@ public struct PasswordGenerator: Sendable {
         return Secret(utf8Bytes: bytes)
     }
 
+    /// Entropy in bits of a `wordCount`-word passphrase drawn from the full EFF
+    /// list: `wordCount × log2(7776)` ≈ 12.9 bits per word. Exact, because each
+    /// word is a uniform draw; the separator and casing options add none.
+    public static func passphraseEntropyBits(wordCount: Int) -> Double {
+        guard wordCount > 0 else { return 0 }
+        return Double(wordCount) * log2(Double(Wordlist.expectedCount))
+    }
+
     // MARK: - Passphrase generation
 
     /// Generate a diceware-style passphrase by drawing `wordCount` words

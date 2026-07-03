@@ -120,4 +120,21 @@ public struct PasswordPolicy: Sendable, Equatable {
         guard avoidAmbiguous else { return base }
         return base.filter { !ambiguousCharacters.contains($0) }
     }
+
+    /// The number of distinct characters a password under this policy draws
+    /// from — the union of the enabled classes' allowed characters. (The
+    /// built-in classes are disjoint, so summing per-class counts is exact.)
+    public var alphabetSize: Int {
+        enabledClasses.reduce(0) { $0 + allowedCharacters(for: $1).count }
+    }
+
+    /// Estimated entropy in bits of a password generated under this policy:
+    /// `length × log2(alphabetSize)`. Marginally optimistic — the
+    /// at-least-one-per-class guarantee excludes a sliver of the keyspace
+    /// (well under a bit at realistic lengths) — so surface it as "≈".
+    public var estimatedEntropyBits: Double {
+        let size = alphabetSize
+        guard size > 1 else { return 0 }
+        return Double(length) * log2(Double(size))
+    }
 }

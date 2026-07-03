@@ -48,6 +48,7 @@ public final class AppModel {
         case importing = "Import"
         case findings = "Findings"
         case fixing = "Fix Queue"
+        case generate = "Generate"
         case cull = "Cull"
         case cleanup = "Clean Up"
         case help = "Help"
@@ -58,6 +59,7 @@ public final class AppModel {
             case .importing: return "square.and.arrow.down"
             case .findings: return "list.bullet.rectangle"
             case .fixing: return "checkmark.shield"
+            case .generate: return "wand.and.stars"
             case .cull: return "trash"
             case .cleanup: return "trash.slash"
             case .help: return "questionmark.circle"
@@ -173,6 +175,10 @@ public final class AppModel {
     private var scopedURL: URL?
 
     public let fixQueue: FixQueue
+
+    /// The standalone Generate tab's state — shares the app's one generator, so
+    /// a degraded wordlist disables passphrases everywhere consistently.
+    public let generatorPanel: GeneratorPanel
 
     // MARK: Fix progress (persisted across launches — site+username keys only, NO passwords)
     public private(set) var completedKeys: Set<String> = []
@@ -401,6 +407,7 @@ public final class AppModel {
             clipboard: Clipboard(),
             opener: opener
         )
+        self.generatorPanel = GeneratorPanel(generator: generator)
         loadBrowserPreference()
         loadProgress()
         restoreWatchedFolder()
@@ -1015,6 +1022,18 @@ public final class AppModel {
         guard !Task.isCancelled, epoch == auditEpoch, generation == importGeneration else { return }
         self.report = report
         self.section = .findings
+    }
+
+    // MARK: - Standalone generator bridge
+
+    /// Copy the Generate tab's current password with the same clipboard hygiene
+    /// as the Fix Queue: written with the concealed marker, auto-cleared after
+    /// the timeout, and cleared on quit if still pending — one owner
+    /// (`fixQueue`) for every pending clipboard clear, so the termination flush
+    /// covers this copy too.
+    public func copyGeneratedPassword() {
+        guard let secret = generatorPanel.current else { return }
+        fixQueue.copySecret(secret)
     }
 
     // MARK: - Fix queue bridge

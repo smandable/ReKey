@@ -549,3 +549,27 @@ func generatedPasswordsAreNotConstant() throws {
     // 20 independent length-20 passwords colliding would indicate a broken RNG.
     #expect(seen.count == 20)
 }
+
+// MARK: - Entropy estimates (Generate tab strength readout)
+
+@Test
+func alphabetSizeReflectsClassesAndAmbiguity() {
+    // Full set: 26 + 26 + 10 + 24 symbols.
+    #expect(PasswordPolicy(length: 20, avoidAmbiguous: false).alphabetSize == 86)
+    // Ambiguous removed: l (lower), I + O (upper), 1 + 0 (digits) → 81.
+    #expect(PasswordPolicy(length: 20, avoidAmbiguous: true).alphabetSize == 81)
+    // Letters + digits only, full set: 26 + 26 + 10.
+    #expect(PasswordPolicy(length: 20, avoidAmbiguous: false, lettersAndDigitsOnly: true).alphabetSize == 62)
+}
+
+@Test
+func estimatedEntropyIsLengthTimesLog2Alphabet() {
+    let p = PasswordPolicy(length: 20, avoidAmbiguous: false)
+    #expect(abs(p.estimatedEntropyBits - 20 * log2(86.0)) < 0.001)
+}
+
+@Test
+func passphraseEntropyIsPerWordLog2OfListSize() {
+    #expect(abs(PasswordGenerator.passphraseEntropyBits(wordCount: 6) - 6 * log2(7776.0)) < 0.001)
+    #expect(PasswordGenerator.passphraseEntropyBits(wordCount: 0) == 0)
+}

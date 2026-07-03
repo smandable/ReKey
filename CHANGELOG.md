@@ -15,6 +15,15 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
 ## [Unreleased]
 
+### Added
+- **A standalone Generate tab — create a password without the audit → fix flow.**
+  For a new signup (or anything else), pick Strong / Letters + digits / Passphrase,
+  length or word count, and copy. Same CSPRNG engine and saved defaults as the Fix
+  Queue, plus a live "≈ N bits" strength readout. Copies use the existing clipboard
+  hygiene: concealed-marked, auto-cleared ~90s later, and cleared on quit. Nothing
+  is saved — ReKey never stores a generated password. Not paywalled in the App
+  Store build (the unlock gates the fix workflow, not utilities). [auditor]
+
 ### Changed
 - Build/packaging scripts now run the packaged app's `--selftest` and fail the
   build if a bundled resource (Public Suffix List, EFF wordlist, reset-router

@@ -154,6 +154,12 @@ least one character from each required class. Configurable length, character
 classes, "avoid look-alikes" (`Il1O0`), a letters-and-digits-only mode for
 picky sites, and a diceware passphrase mode (vendored EFF large wordlist).
 
+The same engine also powers a standalone **Generate** tab — a one-off password
+or passphrase for a new signup, outside the audit → fix flow, with a live
+"≈ N bits" strength readout. Nothing is saved: copy it (concealed-marked,
+auto-cleared from the clipboard ~90s later and on quit) and it's gone once you
+regenerate or quit.
+
 ### Reset routing
 
 Tries `https://{domain}/.well-known/change-password` (the same mechanism Safari

@@ -56,6 +56,7 @@ public struct RootView: View {
         case .importing: ImportView(model: model)
         case .findings: FindingsView(model: model)
         case .fixing: FixQueueView(model: model)
+        case .generate: GeneratorView(model: model)
         // Destructive views aren't compiled into the MAS build; those sections are
         // also stripped from the sidebar there, so these cases are unreachable.
         case .cull:
@@ -80,6 +81,7 @@ public struct RootView: View {
         case .importing: return model.files.count
         case .findings: return model.report?.findingsByCredential.count ?? 0
         case .fixing: return model.fixQueue.items.filter { $0.status == .pending }.count
+        case .generate: return 0
         case .cull: return model.markedForDeletionCount
         case .cleanup: return 0
         case .help: return 0
