@@ -6,13 +6,17 @@ export from Chrome, Arc, Firefox, and Apple Passwords, finds **reused** and
 replacements, and routes you to each site's change-password page. **Every change
 is approved by you, and ReKey never changes a password itself.**
 
-Bundle ID: `com.seanmandable.rekey` · macOS 15+ · Swift 6 · arm64.
+Bundle ID: `com.seanmandable.rekey` · macOS 15+ · Swift 6 · Universal.
+
+<img src="screenshots/rekey-02.png" alt="ReKey's Findings list: logins grouped by site, each flagged compromised, reused, or weak, sorted worst-first." width="800">
 
 ## Download
 
-- **Mac App Store** — *in review; link coming once it's approved.* The App Store
-  edition is a streamlined auditor + fixer (free to download and audit), with a
-  one-time in-app unlock for the fix tools.
+- **[Mac App Store](https://apps.apple.com/us/app/rekey-website-password-audit/id6783031023)**
+  — *ReKey - Website Password Audit.* Free to download and audit; a one-time in-app
+  unlock enables the fix tools. This edition is a **pure auditor + fixer**: the
+  sandbox rules out anything that deletes a saved login, so the Cull and Clean Up
+  tabs and the `rekey-cleanup` CLI aren't part of it.
 - **Direct download (full version)** — get the latest
   **[ReKey.dmg](https://github.com/smandable/ReKey/releases/latest)**, open it, and
   drag **ReKey** to Applications. Signed with Developer ID and notarized by Apple,
@@ -73,7 +77,7 @@ the shared **ReKey** scheme is the app.)
 # Or build the app from the command line, no Xcode UI:
 xcodebuild -project ReKey.xcodeproj -scheme ReKey -configuration Release build
 
-# Run the full test suite (224 tests, no network — HIBP & reset are mocked)
+# Run the full test suite (300 tests, no network — HIBP & reset are mocked)
 swift test
 
 # Run from source (dev)
@@ -84,13 +88,17 @@ swift run ReKey
 open ReKey.app
 ```
 
-`Scripts/build_app.sh` builds the release binary, assembles `ReKey.app`, copies
-the vendored resource bundles into `Contents/Resources`, and ad-hoc codesigns it
-with `App/ReKey.entitlements` — useful for a no-Xcode pipeline. (Notarization and
-Sparkle auto-update are out of scope for this build.)
+### The three build scripts
 
-You can sanity-check the packaged bundle's resource loading without opening a
-window:
+| Script | Output | Notes |
+|---|---|---|
+| `Scripts/build_app.sh` | `ReKey.app`, ad-hoc signed | Local dev/no-Xcode pipeline. Builds the release binary, assembles the bundle, copies the vendored resource bundles into `Contents/Resources`, signs with `App/ReKey.entitlements`. |
+| `Scripts/build_release.sh` | `build/ReKey.dmg`, Developer-ID signed + notarized | The GitHub download — the **full** build (Cull, Clean Up, `rekey-cleanup`, free fixing). Takes `MARKETING_VERSION=…`, which it writes into `App/Info.plist` (the single source of truth for both channels). |
+| `Scripts/build_mas.sh` | `build/ReKey.pkg`, distribution-signed | The **App Store** build — compiled with the `MAS_BUILD` flag, which strips the destructive views and turns on the unlock IAP. |
+
+Every packaging script ship-gates on the packaged app's self-test, so a dropped
+resource bundle (Public Suffix List, EFF wordlist, reset-router fallback map)
+fails the build instead of shipping a broken bundle. You can run it by hand:
 
 ```bash
 ReKey.app/Contents/MacOS/ReKey --selftest
@@ -123,6 +131,12 @@ security-scoped bookmark; *Stop* forgets it.
 ---
 
 ## How it works
+
+The sidebar is the workflow, in order: **Import → Findings → Fix Queue**, plus
+**Generate** (a standalone password generator), **Cull** and **Clean Up** (two
+ways to build a `rekey-cleanup` script for logins you no longer want saved), and
+**Help** / **Settings**. Cull and Clean Up exist only in the direct-download
+build — they're compiled out of the App Store one.
 
 1. **Import** — detects each format by header name (not position), parses with a
    correct RFC 4180 parser (quoted fields, embedded commas/newlines, escaped
@@ -202,6 +216,22 @@ flow:
    real one) that you **copy or save and run in Terminal** — so you handle
    hundreds of stale logins in one reviewed batch instead of one at a time. The
    app still never deletes anything itself.
+
+### Cull vs. Clean Up
+
+Both tabs end the same way — a `rekey-cleanup` script you review and run yourself
+— but they answer different questions:
+
+- **Clean Up** is browser-shaped: *"I've moved to Arc; what's still sitting in
+  Chrome and Firefox?"* Pick the browser you're keeping and it lists the sites
+  saved elsewhere, pre-selecting true duplicates and leaving sole copies
+  unchecked.
+- **Cull** is login-shaped: *"which of these hundreds of dead logins do I
+  actually still want?"* A compact, searchable, browser-filterable list where you
+  mark logins for deletion at scale — a browser you've abandoned can hold hundreds
+  of entries for sites you'll never revisit. Marked logins become delete lines in
+  one script. (Only Chromium and Firefox logins are cullable; Apple Passwords has
+  no third-party delete API.)
 
 ### Where/when does the cleanup command run?
 
@@ -312,15 +342,29 @@ Sources/
   PasswordGenerator/ CSPRNG generator + diceware passphrases                            (+ EFF wordlist)
   ResetRouter/       well-known + curated fallback, lazy by construction                (+ FallbackMap)
   FixQueue/          preview/approve state machine + clipboard hygiene
-  ReKeyUI/           SwiftUI: Import, Findings, Fix Queue (no logic)
+  ReKeyUI/           SwiftUI: Import, Findings, Fix Queue, Generate, Cull, Clean Up (no logic)
+                     + Store.swift, the StoreKit unlock (App Store build only)
   ReKeyApp/          @main entry point
+  CleanupScript/     builds the `rekey-cleanup` script text the Cull / Clean Up tabs hand you
   BrowserStore/      OPT-IN, separate: decrypt-free Chromium/Firefox login delete (not linked by the app)
-  ReKeyCleanup/      OPT-IN, separate: the `rekey-cleanup` CLI
+  CleanupCLI/        OPT-IN, separate: argument parsing + command handling for the CLI
+  ReKeyCleanup/      OPT-IN, separate: the `rekey-cleanup` executable
 Tests/               Swift Testing suites + synthetic fixtures (Tests/Fixtures)
-App/                 Info.plist, ReKey.entitlements
-Scripts/build_app.sh assembles + signs the sandboxed .app
+App/                 Info.plist (version source of truth), ReKey.entitlements
+Scripts/             build_app.sh · build_release.sh (.dmg) · build_mas.sh (.pkg) · screenshots.sh
+docs/                HELP.md, PRIVACY.md, App Store listing copy
 ```
+
+Two channels, one codebase: the App Store build is the same source compiled with
+`MAS_BUILD`, which drops the Cull / Clean Up views from the binary and enables the
+one-time unlock. See [CHANGELOG.md](CHANGELOG.md) — entries are tagged
+**[auditor]** / **[cli]** / **[cull]** by which channel they reach.
 
 Every logic module is free of any SwiftUI import and independently unit-tested.
 Networking (HIBP, reset router) is injected behind protocols, so the engines test
 with no network and the live clients are wired in only at the app layer.
+
+---
+
+**More:** [Help & FAQ](docs/HELP.md) · [Privacy policy](docs/PRIVACY.md) ·
+[Changelog](CHANGELOG.md) · [Releases](https://github.com/smandable/ReKey/releases)
