@@ -44,8 +44,11 @@ public struct RootView: View {
         } detail: {
             detail
         }
-        // Float above the browser change page ReKey opens, so it isn't buried.
-        .background(WindowLevelModifier(keepOnTop: keepOnTop))
+        // Float above the browser change page ReKey opens, so it isn't buried —
+        // but ONLY while a fix is actually open in the browser. Floating for the
+        // whole session makes a full-window app hover over everything else you're
+        // doing, which is what the setting's wording promises to solve, not cause.
+        .background(WindowLevelModifier(keepOnTop: keepOnTop && hasOpenFix))
         // On quit, clear a still-copied password from the clipboard — the timed
         // auto-clear can't fire after the process exits, so a quit inside the
         // window would otherwise leave the plaintext behind.
@@ -80,6 +83,12 @@ public struct RootView: View {
         case .help: HelpView(model: model)
         case .settings: SettingsView(store: model.store)
         }
+    }
+
+    /// True while at least one queued fix has been opened in the browser and not
+    /// yet resolved — the window of time the float exists for.
+    private var hasOpenFix: Bool {
+        model.fixQueue.items.contains { $0.status == .opened }
     }
 
     private func badge(for section: AppModel.Section) -> Int {

@@ -30,8 +30,8 @@ struct SettingsView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Keep ReKey above other windows", isOn: $keepOnTop)
-                        Text("ReKey floats on top so the browser change page it opens doesn't bury it — park ReKey in a corner and the browser opens behind it. ReKey is sandboxed, so it can't move the browser's window onto another monitor; floating is the reliable way to keep it from being covered. Turn off to behave like a normal window.")
+                        Toggle("Float above other windows while fixing", isOn: $keepOnTop)
+                        Text("While a change page is open in your browser, ReKey floats on top so the browser doesn't bury it — park ReKey in a corner and the page opens behind it. ReKey is sandboxed, so it can't move the browser's window onto another monitor; floating is the reliable way to keep it from being covered. It drops back to a normal window as soon as you mark the fix done or skip it, and behaves normally the rest of the time.")
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

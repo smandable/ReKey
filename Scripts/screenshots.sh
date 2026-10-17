@@ -17,6 +17,9 @@
 #                    without a human clicking each time. Fails if ReKey isn't
 #                    running or has no on-screen window.
 #   OUT=path.png     write here instead of the next auto-numbered screenshots/ file.
+#   PAD=0            skip the App Store canvas entirely — save the window grab at
+#                    its own size. For website/README images, where the padding
+#                    the App Store wants is just margin to crop back off.
 #
 # The window is captured at its NORMAL size and never resized up — the script only
 # adds a margin to reach a legal dimension, so the app sits at natural size on a
@@ -76,7 +79,10 @@ if (( OW > W || OH > H )); then
 fi
 
 # Center the window on the exact-size canvas (margin in BG), then drop alpha.
-sips --padToHeightWidth "$H" "$W" --padColor "$BG" "$RAW" >/dev/null
+# PAD=0 keeps the window's own size — no canvas, no margin.
+if [[ "${PAD:-1}" != "0" ]]; then
+    sips --padToHeightWidth "$H" "$W" --padColor "$BG" "$RAW" >/dev/null
+fi
 sips -s format jpeg "$RAW" --out "$TMP/flat.jpg" >/dev/null   # jpeg has no alpha
 sips -s format png "$TMP/flat.jpg" --out "$OUT" >/dev/null    # back to crisp png, now opaque
 

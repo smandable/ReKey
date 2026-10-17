@@ -4,6 +4,27 @@ import Model
 import PasswordGenerator
 @testable import ReKeyUI
 
+@Suite("Window-level preference")
+struct KeepOnTopDefaultTests {
+    /// Floating defaults OFF. It used to default on and hold `.floating` for the
+    /// whole session, so a full-window app sat above every other app from launch
+    /// to quit. The float is now opt-in AND scoped to an open fix (RootView).
+    @Test("Unset means don't float")
+    func defaultsOff() {
+        let d = UserDefaults(suiteName: "rekey.tests.keepOnTop.\(UUID().uuidString)")!
+        #expect(Prefs.keepOnTopValue(d) == false)
+    }
+
+    @Test("An explicit choice is honored in both directions")
+    func explicitValue() {
+        let d = UserDefaults(suiteName: "rekey.tests.keepOnTop.\(UUID().uuidString)")!
+        d.set(true, forKey: Prefs.keepOnTop)
+        #expect(Prefs.keepOnTopValue(d) == true)
+        d.set(false, forKey: Prefs.keepOnTop)
+        #expect(Prefs.keepOnTopValue(d) == false)
+    }
+}
+
 @Suite("New-password generation defaults")
 struct GenerationDefaultsTests {
     @Test("Style maps to a passphrase or the right policy")

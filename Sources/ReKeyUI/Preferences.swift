@@ -23,10 +23,13 @@ enum Prefs {
         d.object(forKey: showPasswords) as? Bool ?? true
     }
 
-    /// Whether ReKey's window floats above other windows (true when unset), so the
-    /// browser change page it opens doesn't bury it.
+    /// Whether ReKey may float above other windows (false when unset). Even when
+    /// on, the float is scoped to an open fix — see `RootView`. It used to default
+    /// on and float for the whole session, which put a full-window app at the
+    /// `.floating` level meant for palettes: ReKey sat over every other app from
+    /// launch to quit, including while you were doing something else entirely.
     static func keepOnTopValue(_ d: UserDefaults = .standard) -> Bool {
-        d.object(forKey: keepOnTop) as? Bool ?? true
+        d.object(forKey: keepOnTop) as? Bool ?? false
     }
 
     /// The current new-password generation defaults, with fallbacks. "No

@@ -13,6 +13,18 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
+## [Unreleased]
+
+### Changed
+- **ReKey no longer hovers over everything you do.** The window floated at
+  macOS's `.floating` level — the one meant for palettes and HUDs — for the whole
+  session, and it defaulted to on, so a full-window app sat above every other app
+  from launch until quit. Floating is now **off by default** and, when enabled,
+  **scoped to an open fix**: ReKey rises above the browser only while a change
+  page it opened is still unresolved, and drops back to a normal window as soon
+  as you mark that fix done or skip it. The Settings toggle is reworded to match
+  ("Float above other windows while fixing"). [auditor]
+
 ## [1.2.1] — 2026-10-16
 
 ### Fixed
