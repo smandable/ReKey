@@ -13,7 +13,7 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
-## [Unreleased]
+## [1.2.1] — 2026-10-16
 
 ### Fixed
 - **Sidebar clicks land on the row you actually clicked.** Each row's clickable
