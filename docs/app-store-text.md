@@ -43,7 +43,7 @@ CHECKED AGAINST KNOWN BREACHES
 ReKey checks every password against Have I Been Pwned using k-anonymity: only the first five characters of a hash ever leave your Mac — never your actual password, and never the full hash.
 
 GUIDED FIXES
-For each weak or breached login, ReKey generates a strong replacement — random or a memorable passphrase, tuned to your defaults — and opens that site's own change-password page in your browser. You set the new password; your browser saves it. ReKey never changes a password itself, and you approve every step.
+For each weak or breached login, ReKey generates a strong replacement — random or a memorable passphrase, tuned to your defaults — and opens that site's own change-password page in your browser. You set the new password; your browser saves it. ReKey never changes a password itself, and you approve every step. Apple Passwords logins work the same way, with one caveat: ReKey never writes to iCloud Keychain, so update that entry in the Passwords app (or let Safari save it). ReKey flags accounts saved in both Apple Passwords and a browser, since the two don't sync.
 
 GENERATE ANY TIME
 A built-in generator you can open on its own, no audit required. Random characters or a memorable passphrase, your length and character rules, with a live strength readout — for a new signup or anything else. Generating is free, and nothing you generate is stored.
