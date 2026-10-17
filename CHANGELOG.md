@@ -13,7 +13,7 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
-## [Unreleased]
+## [1.2.2] — 2026-10-16
 
 ### Changed
 - **ReKey no longer hovers over everything you do.** The window floated at

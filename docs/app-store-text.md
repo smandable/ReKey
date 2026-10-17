@@ -69,10 +69,11 @@ spaces.
 security,pwned,strength,privacy,duplicate,checkup,health,hibp,weak,leak,exposed,compromised,scanner
 ```
 
-## What's New (Version 1.2.1)
+## What's New (Version 1.2.2)
 ```
 - New Generate tab: a strong password or passphrase whenever you need one — a new signup, a shared login, anything — without importing a CSV first. Random or memorable, your length, with a live strength readout.
 - Generating is free, like the audit. Nothing you generate is saved: copy it, and it clears from the clipboard on its own.
+- ReKey no longer floats above your other windows all the time. It rises above the browser only while a change page it opened is still waiting on you, and it's off by default.
 - Fixed: sidebar items now respond to the first click, instead of sometimes selecting a neighbouring item or none at all.
 ```
 
