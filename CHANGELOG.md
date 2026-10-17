@@ -13,7 +13,10 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
-## [Unreleased]
+## [1.2] — 2026-10-16
+
+Ships first on the **GitHub .dmg** channel; the App Store build follows when 1.2
+clears review (it is still on 1.1.2 until then).
 
 ### Added
 - **A standalone Generate tab — create a password without the audit → fix flow.**
