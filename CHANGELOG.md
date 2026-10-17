@@ -15,6 +15,15 @@ Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
 ## [Unreleased]
 
+### Fixed
+- **Sidebar clicks land on the row you actually clicked.** Each row's clickable
+  area sat about 51pt — nearly two rows — above where the row was drawn, so
+  clicking "Generate" could select "Settings" and clicking the last row hit
+  nothing at all, which read as the sidebar needing several clicks to respond.
+  The sidebar's `ScrollView` was insetting its content below the title bar
+  visually while hit-testing kept the un-inset geometry; the rows never needed to
+  scroll, so it's a plain stack now. [auditor]
+
 ### Changed
 - The `rekey-cleanup` script layer is now excluded from the App Store build at
   compile time (`#if !MAS_BUILD`), not just hidden from its navigation. The

@@ -13,26 +13,32 @@ public struct RootView: View {
 
     public var body: some View {
         NavigationSplitView {
-            // A plain ScrollView + VStack of Button rows — NOT a `List`. Two of
-            // this macOS's SwiftUI bugs bite the sidebar: `List(selection:)` is
-            // inert (no row highlights/activates), and a `List` of custom rows
-            // intermittently renders EMPTY when the detail swaps to certain views.
-            // Buttons set the section directly and draw their own highlight.
-            ScrollView {
-                VStack(spacing: 2) {
-                    ForEach(AppModel.Section.sidebar) { section in
-                        SidebarRow(
-                            section: section,
-                            isSelected: model.section == section,
-                            badge: badge(for: section)
-                        ) {
-                            model.section = section
-                        }
+            // A plain VStack of Button rows — NOT a `List`, and NOT in a
+            // `ScrollView`. Three of this macOS's SwiftUI bugs bite the sidebar:
+            // `List(selection:)` is inert (no row highlights/activates); a `List`
+            // of custom rows intermittently renders EMPTY when the detail swaps to
+            // certain views; and a `ScrollView` here insets its content below the
+            // title bar VISUALLY while hit-testing keeps the un-inset geometry, so
+            // every row's clickable area sat ~51pt (nearly two rows) above where it
+            // was drawn — clicking "Generate" selected "Settings", and clicking the
+            // last row hit nothing at all. The rows never need to scroll (eight at
+            // ~27pt), so the VStack sidesteps it. Buttons set the section directly
+            // and draw their own highlight.
+            VStack(spacing: 2) {
+                ForEach(AppModel.Section.sidebar) { section in
+                    SidebarRow(
+                        section: section,
+                        isSelected: model.section == section,
+                        badge: badge(for: section)
+                    ) {
+                        model.section = section
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxHeight: .infinity, alignment: .top)
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
             .navigationTitle("ReKey")
         } detail: {

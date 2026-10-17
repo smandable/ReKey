@@ -12,6 +12,11 @@
 #                    App Store size (1280x800 / 1440x900 / 2560x1600 / 2880x1800)
 #                    that contains the window, so it's padded, never upscaled.
 #   BG=ffffff        background/pad color, hex (default white).
+#   AUTO=1           don't wait for a click — find ReKey's own window and grab it.
+#                    Lets a scripted run capture a sequence (navigate, AUTO=1, …)
+#                    without a human clicking each time. Fails if ReKey isn't
+#                    running or has no on-screen window.
+#   OUT=path.png     write here instead of the next auto-numbered screenshots/ file.
 #
 # The window is captured at its NORMAL size and never resized up — the script only
 # adds a margin to reach a legal dimension, so the app sits at natural size on a
@@ -25,13 +30,25 @@ mkdir -p "$OUTDIR"
 
 BG="${BG:-ffffff}"
 
-n=1
-while [[ -e "$OUTDIR/$(printf 'rekey-%02d.png' "$n")" ]]; do ((n++)); done
-OUT="$OUTDIR/$(printf 'rekey-%02d.png' "$n")"
+if [[ -n "${OUT:-}" ]]; then
+    mkdir -p "$(dirname "$OUT")"
+else
+    n=1
+    while [[ -e "$OUTDIR/$(printf 'rekey-%02d.png' "$n")" ]]; do ((n++)); done
+    OUT="$OUTDIR/$(printf 'rekey-%02d.png' "$n")"
+fi
 
 TMP="$(mktemp -d)"; RAW="$TMP/raw.png"; trap 'rm -rf "$TMP"' EXIT
-echo "Click the ReKey window to capture it (Esc to cancel)…"
-screencapture -o -w "$RAW"
+if [[ "${AUTO:-}" == "1" ]]; then
+    # Grab ReKey's own window by id — no click, so a script can walk the app
+    # through its tabs and capture each one.
+    WID="$(swift "$ROOT/Scripts/window-id.swift" 2>/dev/null || true)"
+    [[ -n "$WID" ]] || { echo "AUTO=1: no on-screen ReKey window found (is it running?)." >&2; exit 1; }
+    screencapture -o -x -l"$WID" "$RAW"
+else
+    echo "Click the ReKey window to capture it (Esc to cancel)…"
+    screencapture -o -w "$RAW"
+fi
 [[ -s "$RAW" ]] || { echo "Cancelled — nothing captured."; exit 1; }
 
 # Window's natural pixel size (2x on Retina).
