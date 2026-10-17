@@ -45,6 +45,9 @@ ReKey checks every password against Have I Been Pwned using k-anonymity: only th
 GUIDED FIXES
 For each weak or breached login, ReKey generates a strong replacement — random or a memorable passphrase, tuned to your defaults — and opens that site's own change-password page in your browser. You set the new password; your browser saves it. ReKey never changes a password itself, and you approve every step.
 
+GENERATE ANY TIME
+A built-in generator you can open on its own, no audit required. Random characters or a memorable passphrase, your length and character rules, with a live strength readout — for a new signup or anything else. Generating is free, and nothing you generate is stored.
+
 PRIVACY FIRST
 ReKey is the checkup, not the vault. It never edits your credentials and never writes to any browser, Apple Passwords, or the system keychain. No analytics, telemetry, advertising, or tracking of any kind. It's sandboxed and reads only the files you explicitly choose. The only things that ever leave your Mac are the k-anonymity breach-check prefix and an on-demand lookup of the change page for the one site you're fixing.
 
@@ -66,15 +69,16 @@ spaces.
 security,pwned,strength,privacy,duplicate,checkup,health,hibp,weak,leak,exposed,compromised,scanner
 ```
 
-## What's New (Version 1.1.2)
+## What's New (Version 1.2)
 ```
-- The one-time unlock for the guided fix tools is now available.
-- Reliability and polish improvements.
+- New Generate tab: a strong password or passphrase whenever you need one — a new signup, a shared login, anything — without importing a CSV first. Random or memorable, your length, with a live strength readout.
+- Generating is free, like the audit. Nothing you generate is saved: copy it, and it clears from the clipboard on its own.
 ```
 
 ### Previous versions
 
 ```
+Version 1.1.2 — The one-time unlock for the guided fix tools is now available.
 Version 1.1.1 — A clearer unlock paywall: progress while the price loads and a Try Again option if it doesn't, instead of an inactive button.
 Version 1.0 — Initial release.
 ```
