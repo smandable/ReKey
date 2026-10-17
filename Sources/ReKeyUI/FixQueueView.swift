@@ -64,6 +64,10 @@ struct FixQueueView: View {
         } message: { Text($0) }
     }
 
+    // Definitions for the deletion/Terminal workflow — direct build only, like
+    // their render sites above. The App Store build carries none of this copy.
+    #if !MAS_BUILD
+
     /// One script that removes the stale old saved logins for every account the
     /// user has marked done — across all browsers — with Copy / Save / Append so a
     /// multi-session cleanup can accumulate into a single file.
@@ -258,6 +262,8 @@ struct FixQueueView: View {
             saveError = "Couldn't update \(url.lastPathComponent): \(error.localizedDescription)"
         }
     }
+    #endif  // !MAS_BUILD
+
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -387,6 +393,9 @@ private struct FixCard: View {
         }
     }
 
+    // Direct build only — the App Store build never shows the rekey-cleanup
+    // handoff, so its copy stays out of that binary entirely.
+    #if !MAS_BUILD
     /// Guidance (only) for removing a stale old saved login after a fix is done.
     /// ReKey never deletes it — this is manual steps plus a copy-paste command
     /// for the separate `rekey-cleanup` tool.
@@ -444,6 +453,8 @@ private struct FixCard: View {
             copiedCommand = false
         }
     }
+    #endif  // !MAS_BUILD
+
 
     private var headerRow: some View {
         HStack {

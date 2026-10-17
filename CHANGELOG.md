@@ -13,6 +13,16 @@ ReKey ships through two channels off one codebase:
 
 Entries tagged **[internal]** are refactors with no user-facing behavior change.
 
+## [Unreleased]
+
+### Changed
+- The `rekey-cleanup` script layer is now excluded from the App Store build at
+  compile time (`#if !MAS_BUILD`), not just hidden from its navigation. The
+  command templates were previously compiled in as unreachable string data; the
+  submitted binary now contains none of them, which makes the reviewer note's
+  "not referenced anywhere in this build" literally true. No behavior change in
+  either channel — the direct build is unaffected. [internal]
+
 ## [1.2] — 2026-10-16
 
 Ships first on the **GitHub .dmg** channel; the App Store build follows when 1.2

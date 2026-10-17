@@ -1,6 +1,8 @@
 import Foundation
 import Model
+#if !MAS_BUILD
 import CleanupScript
+#endif
 
 /// Builds the (guidance-only) advice shown after a fix is done, for removing a
 /// stale saved login if the browser saved a new entry instead of updating.
@@ -26,7 +28,12 @@ enum StaleLoginGuidance {
     /// after quitting the browser). Nil when the tool doesn't support the source.
     /// Delegates to ``CleanupScriptBuilder/deleteCommand`` — the single source of
     /// truth for the `delete --site` command string.
+    ///
+    /// Direct build only: the App Store build is a pure auditor and carries no
+    /// part of the `rekey-cleanup` workflow, not even its command strings.
+    #if !MAS_BUILD
     static func cliCommand(for source: BrowserSource, domain: String, username: String) -> String? {
         CleanupScriptBuilder.deleteCommand(browser: source, site: domain, username: username, confirm: false)
     }
+    #endif
 }

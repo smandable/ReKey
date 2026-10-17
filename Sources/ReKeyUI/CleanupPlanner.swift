@@ -1,5 +1,11 @@
 import Foundation
 import Model
+
+// The App Store build is a pure auditor: it must contain no part of the
+// `rekey-cleanup` workflow — not even the command templates as inert string
+// data, so that "not referenced anywhere in this build" is literally true of
+// the shipped binary. Everything below compiles only into the direct build.
+#if !MAS_BUILD
 import CleanupScript
 
 /// Plans an old-browser cleanup from the imported credentials: which saved
@@ -117,3 +123,4 @@ enum CleanupPlanner {
         return lines.joined(separator: "\n")
     }
 }
+#endif  // !MAS_BUILD

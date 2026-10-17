@@ -11,6 +11,12 @@ import Model
 // with no duplicate copies — is what lets the smuggling defenses below be tested
 // once and trusted everywhere.
 
+// The App Store build is a pure auditor: it must contain no part of the
+// `rekey-cleanup` workflow — not even the command templates as inert string
+// data, so that "not referenced anywhere in this build" is literally true of
+// the shipped binary. Everything below compiles only into the direct build.
+#if !MAS_BUILD
+
 /// One (browser, site, username) the cleanup script should target. For a safe
 /// target, `username` is "" when the delete is site-level (Firefox — encrypted
 /// usernames — or a blank-username login).
@@ -189,3 +195,4 @@ public enum CleanupScriptBuilder {
         return out
     }
 }
+#endif  // !MAS_BUILD

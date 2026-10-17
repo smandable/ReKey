@@ -87,4 +87,7 @@ Two network behaviors, both user-initiated and privacy-preserving:
 
 Note: the public GitHub repository also contains a separate, optional
 command-line tool (rekey-cleanup) for power users. It is NOT part of this app,
-is not bundled, and is not referenced anywhere in this sandboxed build.
+is not bundled, and is not referenced anywhere in this sandboxed build — the
+code that builds its commands is excluded at compile time (`#if !MAS_BUILD`), so
+the submitted binary contains no part of it, not even the command strings as
+inert data.

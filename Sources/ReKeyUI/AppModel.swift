@@ -10,7 +10,9 @@ import HIBPClient
 import PasswordGenerator
 import ResetRouter
 import FixQueue
+#if !MAS_BUILD
 import CleanupScript
+#endif
 
 /// One imported CSV file and what came of it.
 public struct ImportedFile: Identifiable, Sendable {
@@ -25,6 +27,7 @@ public struct ImportedFile: Identifiable, Sendable {
     public var sourceDeleted: Bool = false
 }
 
+#if !MAS_BUILD
 /// The fixed-login cleanup split into commands safe to run and sites needing
 /// manual, id-based removal. (`CleanupTarget` / `ManualCleanupSite` live in the
 /// `CleanupScript` library, the single source of truth for script building.)
@@ -32,6 +35,7 @@ public struct FixedCleanupPlan: Sendable {
     public var safeCommands: [String]
     public var manualSites: [ManualCleanupSite]
 }
+#endif  // !MAS_BUILD
 
 // `FixSaveRecord` / `ProgressState` / `ProgressStore` (the persistence layer) live
 // in ProgressStore.swift.
@@ -1053,6 +1057,10 @@ public final class AppModel {
         return Prefs.generation(style: prefs.style, length: prefs.length, avoidLookAlikes: prefs.avoidLookAlikes)
     }
 
+    // The whole rekey-cleanup script layer is direct-build only: the App Store
+    // build is a pure auditor and must not carry the command templates, even as
+    // inert strings. Its call sites in the views are gated the same way.
+    #if !MAS_BUILD
     // MARK: - Aggregated cleanup script (across all fixed logins)
 
     /// One deduped `rekey-cleanup delete` command per login the user has marked
@@ -1288,6 +1296,8 @@ public final class AppModel {
             confirm: confirm, tallyVar: "REKEY_TALLY")
         return lines.isEmpty ? "" : lines.joined(separator: "\n")
     }
+    #endif  // !MAS_BUILD
+
 
     public func enqueueAllFlagged() async {
         guard let report else { return }
